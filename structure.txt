@@ -1,0 +1,36 @@
+
+C:\work invest\clinet local test
+├── .env
+├── .git
+├── .gitignore
+├── components.json
+├── dist
+├── index.html
+├── node_modules
+├── package-lock.json
+├── package.json
+├── postcss.config.js
+├── src
+├── structure.txt
+├── tailwind.config.js
+├── tsconfig.json
+├── vercel.json
+└── vite.config.ts
+
+directory: 4 file: 12
+
+
+/*
+{
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "http://localhost:5000/api/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
+*/
