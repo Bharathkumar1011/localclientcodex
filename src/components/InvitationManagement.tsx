@@ -77,31 +77,23 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
 
   // Fetch invitations
   const { data: invitations = [], isLoading, refetch } = useQuery<Invitation[]>({
-    queryKey: ['/api/invitations'],
+    queryKey: ['invitations'],
     queryFn: async () => {
-      const response = await fetch('/api/invitations', {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch invitations');
-      }
-      return response.json();
+      const res = await apiRequest("GET", "/invitations");
+      return res.json();
     },
   });
 
+
   // Fetch users for analyst assignment
   const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['/users'],
+    queryKey: ['users-for-invitations'],
     queryFn: async () => {
-      const response = await fetch('/users', {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-      return response.json();
+      const res = await apiRequest("GET", "/users");
+      return res.json();
     },
   });
+
 
   // Send invitation form
   const form = useForm<InvitationFormData>({
@@ -115,7 +107,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
   // Send invitation mutation
   const sendInvitationMutation = useMutation({
     mutationFn: async (data: InvitationFormData) => {
-      return apiRequest('POST', '/api/invitations', data);
+      return apiRequest('POST', '/invitations', data);
     },
     onSuccess: () => {
       toast({
@@ -124,7 +116,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
       });
       form.reset();
       setShowInviteDialog(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['invitations'] });
     },
     onError: (error: any) => {
       toast({
@@ -138,7 +130,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
   // Delete invitation mutation
   const deleteInvitationMutation = useMutation({
     mutationFn: async (invitationId: number) => {
-      return apiRequest('DELETE', `/api/invitations/${invitationId}`);
+      return apiRequest('DELETE', `/invitations/${invitationId}`);
     },
     onSuccess: () => {
       toast({
@@ -146,7 +138,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
         description: "The invitation has been cancelled successfully.",
       });
       setDeleteInvitation(null);
-      queryClient.invalidateQueries({ queryKey: ['/api/invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['/invitations'] });
     },
     onError: (error: any) => {
       toast({
@@ -160,7 +152,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
   // Retry invitation email mutation
   const retryInvitationMutation = useMutation({
     mutationFn: async (invitationId: number) => {
-      return apiRequest('POST', `/api/invitations/${invitationId}/retry`, {});
+      return apiRequest('POST', `/invitations/${invitationId}/retry`, {});
     },
     onSuccess: (data: any) => {
       toast({
@@ -168,7 +160,7 @@ export default function InvitationManagement({ currentUser }: InvitationManageme
         description: data.message,
         variant: data.emailSent ? "default" : "destructive",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/invitations'] });
+      queryClient.invalidateQueries({ queryKey: ['/invitations'] });
     },
     onError: (error: any) => {
       toast({

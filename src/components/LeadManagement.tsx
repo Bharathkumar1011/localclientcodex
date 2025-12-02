@@ -132,7 +132,7 @@ useEffect(() => {
   // Bulk assign leads mutation
   const bulkAssignMutation = useMutation({
     mutationFn: async ({ leadIds, assignedTo }: { leadIds: number[]; assignedTo: string }) => {
-      return apiRequest('POST', '/api/leads/bulk-assign', { leadIds, assignedTo });
+      return apiRequest('POST', '/leads/bulk-assign', { leadIds, assignedTo });
     },
     onSuccess: (data: any) => {
       // Invalidate the correct query key based on stage
@@ -231,7 +231,7 @@ useEffect(() => {
     queryFn: async () => {
       if (currentUser.role === 'analyst') {
         // Fetch analyst's assigned interns
-        const response = await apiRequest('GET', `/api/analysts/${currentUser.id}/interns`);
+        const response = await apiRequest('GET', `/analysts/${currentUser.id}/interns`);
         const data = await response.json();
         console.log('analyst', data);
         return data;

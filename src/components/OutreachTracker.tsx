@@ -273,8 +273,11 @@ useEffect(() => {
   // Fetch outreach activities
   const { data: activities = [], isLoading } = useQuery<OutreachActivity[]>({
     queryKey: ['/outreach/lead', leadId],
+    queryFn: () =>
+      apiRequest('GET', `/outreach/lead/${leadId}`).then(res => res.json()),
     enabled: !!leadId,
   });
+
   // --- detect if editing existing scheduled task ---
   const [location] = useLocation();
   const searchParams = new URLSearchParams(location.split("?")[1] || "");
@@ -291,14 +294,20 @@ useEffect(() => {
   // Fetch documents (interventions with type='document') for Pitching/Mandates stages
   const { data: documents = [] } = useQuery<any[]>({
     queryKey: ['/interventions/lead', leadId],
+    queryFn: () =>
+      apiRequest('GET', `/interventions/lead/${leadId}`).then(res => res.json()),
     enabled: !!leadId && (leadStage === 'pitching' || leadStage === 'mandates'),
   });
 
+
   // Fetch company data for Drive Link (Pitching stage only)
   const { data: company } = useQuery<any>({
-    queryKey: ['api/companies', companyId],
+    queryKey: ['/companies', companyId],
+    queryFn: () =>
+      apiRequest('GET', `/companies/${companyId}`).then(res => res.json()),
     enabled: !!companyId && leadStage === 'pitching',
   });
+
   
   console.log("company data:", company);
 
@@ -306,8 +315,11 @@ useEffect(() => {
   // Fetch contacts for the company to display POC information
   const { data: contacts = [] } = useQuery<any[]>({
     queryKey: ['/contacts/company', companyId],
+    queryFn: () =>
+      apiRequest('GET', `/contacts/company/${companyId}`).then(res => res.json()),
     enabled: !!companyId,
   });
+
   console.log("contacts data:", contacts);
 
 
@@ -320,7 +332,7 @@ useEffect(() => {
 
   // Update company drive link mutation
   const updateDriveLinkMutation = useMutation({
-    mutationFn: (link: string) => apiRequest('PATCH', `/api/companies/${companyId}`, { driveLink: link }),
+    mutationFn: (link: string) => apiRequest('PATCH', `/companies/${companyId}`, { driveLink: link }),
     onSuccess: async () => {
       toast({
         title: "Success",

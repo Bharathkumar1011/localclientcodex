@@ -1,6 +1,9 @@
 // Integration: javascript_log_in_with_replit
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { User } from "@/lib/types";
+import { supabase } from "@/lib/supabaseClient";
+import type { Session } from "@supabase/supabase-js";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -11,40 +14,85 @@ type UserWithTestRole = User & {
 };
 
 export function useAuth() {
+  const queryClient = useQueryClient();
+  const [session, setSession] = useState<Session | null>(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  // Sync Supabase session & react-query
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setSessionLoading(false);
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(
+      (_event, newSession) => {
+        setSession(newSession);
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+      }
+    );
+
+    return () => {
+      subscription?.subscription.unsubscribe();
+    };
+  }, [queryClient]);
+
   console.log("useAuth - Fetching user authentication status");
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        window.location.href = "/reset-password";
+      }
+    });
+
+    return () => listener.subscription.unsubscribe();
+  }, []);
+
   const { data: user, isLoading, error } = useQuery<UserWithTestRole | null>({
     queryKey: ["/api/auth/user"],
     queryFn: async () => {
+      if (!session?.access_token) {
+        return null;
+      }
+
       const response = await fetch(`${API_BASE_URL}/auth/user`, {
-        credentials: "include"
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
-      
-      // If user is not authenticated, return null instead of throwing
+
       if (response.status === 401) {
         return null;
       }
-      
+
       if (!response.ok) {
         throw new Error(`${response.status}: ${response.statusText}`);
       }
-      
+
       return await response.json();
     },
     retry: false,
+    enabled: !sessionLoading,
+      // 💥 REQUIRED FIXES
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    refetchInterval: false,
   });
 
-  // If query completed (success or error), we're no longer loading
-  const authLoading = isLoading;
-  
-  // User is authenticated if we have user data and no error
+  const authLoading = isLoading || sessionLoading;
+
   const authenticated = !!user && !error;
-  
-  // User needs organization setup if they're authenticated but don't have an organizationId
+
   const needsOrganizationSetup = authenticated && user && !user.organizationId;
-  
-  // User needs to select test role if authenticated, has org, is admin/partner, but hasn't selected a test role
-  const needsRoleSelection = authenticated && user && user.organizationId && 
-    (user.role === 'admin' || user.role === 'partner') && !user.hasSelectedTestRole;
+
+  const needsRoleSelection =
+    authenticated &&
+    user &&
+    user.organizationId &&
+    (user.role === "admin" || user.role === "partner") &&
+    !user.hasSelectedTestRole;
 
   return {
     user,

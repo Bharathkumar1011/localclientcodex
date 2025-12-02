@@ -138,19 +138,11 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     queryKey: ['users-analytics'],
     enabled: canAccessUserManagement,
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/users/analytics`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-      return data;
-    },
+      const res = await apiRequest("GET", "/users/analytics");
+      return res.json();
+    }
   });
+
 
 
 
@@ -171,23 +163,14 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
   // });
 
   const { data: users, isLoading: usersLoading, error: usersError } = useQuery<User[]>({
-    queryKey: ['users'],
+    queryKey: ['users-list'],
     enabled: canAccessUserManagement,
     queryFn: async () => {
-      const res = await fetch(`${API_URL}/users`, {
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-      });
-
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${res.statusText}`);
-      }
-
-      // ✅ Return the parsed JSON
-      const data = await res.json();
-      return data;
-    },
+      const res = await apiRequest("GET", "/users");
+      return res.json();
+    }
   });
+
 
 
   // Update user role mutation
@@ -196,8 +179,8 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return apiRequest('PUT', `/users/${userId}/role`, { role });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/users/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['users-analytics'], exact: true });
       toast({
         title: "Role Updated",
         description: `User role has been updated successfully.`,
@@ -225,8 +208,8 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     },
     onSuccess: (newUser) => {
       // Force refetch of both users and analytics queries
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/users/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['users-analytics'], exact: true });
       // Also manually refetch to ensure immediate update
       queryClient.refetchQueries({ queryKey: ['/api/users'] });
       queryClient.refetchQueries({ queryKey: ['/users/analytics'] });
@@ -253,8 +236,8 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return apiRequest('DELETE', `/users/${userId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/users/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['users-analytics'], exact: true });
       toast({
         title: "User Deleted",
         description: "User has been deleted successfully.",
@@ -277,8 +260,8 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
       return apiRequest('PATCH', `/users/${userId}/suspend`, { suspend });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
-      queryClient.invalidateQueries({ queryKey: ['/users/analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['users-list'], exact: true });
+      queryClient.invalidateQueries({ queryKey: ['users-analytics'], exact: true  });
       toast({
         title: "User Updated",
         description: "User suspension status has been updated.",
@@ -295,31 +278,34 @@ export default function UserManagement({ currentUser }: UserManagementProps) {
     },
   });
 
-  // Ownership transfer mutation
-  const ownershipTransferMutation = useMutation({
-    mutationFn: async ({ fromUserId, toUserId }: { fromUserId: string; toUserId: string }) => {
-      return apiRequest('POST', '/users/transfer-ownership', { fromUserId, toUserId });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/users'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['/users/analytics'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-      toast({
-        title: "Ownership Transferred",
-        description: "All leads have been transferred successfully.",
-      });
-      setShowOwnershipTransferDialog(false);
-      setUserToTransfer(null);
-      setTransferToUser("");
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to transfer ownership",
-        variant: "destructive",
-      });
-    },
-  });
+const ownershipTransferMutation = useMutation({
+  mutationFn: async ({ fromUserId, toUserId }: { fromUserId: string; toUserId: string }) => {
+    return apiRequest('POST', '/users/transfer-ownership', { fromUserId, toUserId });
+  },
+  onSuccess: () => {
+    // ❗ Correct keys (must match the useQuery keys)
+    queryClient.invalidateQueries({ queryKey: ['users-list'], exact: true });
+    queryClient.invalidateQueries({ queryKey: ['users-analytics'], exact: true });
+    queryClient.invalidateQueries({ queryKey: ['leads'], exact: true });
+
+    toast({
+      title: "Ownership Transferred",
+      description: "All leads have been transferred successfully.",
+    });
+
+    setShowOwnershipTransferDialog(false);
+    setUserToTransfer(null);
+    setTransferToUser("");
+  },
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to transfer ownership",
+      variant: "destructive",
+    });
+  },
+});
+
 
 
   // Filter users based on search and role

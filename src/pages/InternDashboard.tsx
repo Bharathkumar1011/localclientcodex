@@ -53,10 +53,10 @@ export default function InternDashboard() {
   const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
 
   const { data: assignedLeads, isLoading } = useQuery<LeadWithDetails[]>({
-    queryKey: ['/api/leads/assigned'],
+    queryKey: ['/leads/assigned'],
     queryFn: async () => {
       console.log('[InternDashboard] Fetching assigned leads...');
-      const response = await fetch('/api/leads/assigned', {
+      const response = await fetch('/leads/assigned', {
         credentials: 'include',
       });
       if (!response.ok) {
@@ -94,7 +94,7 @@ export default function InternDashboard() {
           startInEditMode={false}
           onClose={() => setShowPOCManagement(null)}
           onSave={() => {
-            queryClient.invalidateQueries({ queryKey: ['/api/leads/assigned'] });
+            queryClient.invalidateQueries({ queryKey: ['/leads/assigned'] });
             setShowPOCManagement(null);
           }}
         />
