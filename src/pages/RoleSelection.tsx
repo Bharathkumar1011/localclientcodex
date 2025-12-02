@@ -11,6 +11,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Building2, Shield, UserCheck, GraduationCap } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabaseClient";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -31,6 +32,40 @@ export default function RoleSelection() {
     queryKey: ["/auth/user"],
   });
 
+  // const handleContinue = async () => {
+  //   if (!selectedRole) {
+  //     toast({
+  //       title: "Role Required",
+  //       description: "Please select a role to continue",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+  //   try {
+  //     await fetch(`${API_BASE_URL}/auth/set-test-role`, {
+  //       method: "POST",
+  //       credentials: "include",
+  //       body: JSON.stringify({ role: selectedRole }),
+  //       headers: {
+  //         "Content-Type": "application/json",
+  //       },
+  //     });
+
+  //     // Redirect to dashboard
+  //     window.location.href = "/";
+  //   } catch (error) {
+  //     console.error("Error setting test role:", error);
+  //     toast({
+  //       title: "Error",
+  //       description: "Failed to set role. Please try again.",
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
   const handleContinue = async () => {
     if (!selectedRole) {
       toast({
@@ -43,16 +78,25 @@ export default function RoleSelection() {
 
     setIsLoading(true);
     try {
+      // Get Supabase token
+      const { data } = await supabase.auth.getSession();
+      const accessToken = data.session?.access_token;
+
+      if (!accessToken) {
+        throw new Error("No Supabase session found");
+      }
+
       await fetch(`${API_BASE_URL}/auth/set-test-role`, {
         method: "POST",
         credentials: "include",
-        body: JSON.stringify({ role: selectedRole }),
         headers: {
           "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          "x-supabase-access-token": accessToken, // optional fallback
         },
+        body: JSON.stringify({ role: selectedRole }),
       });
 
-      // Redirect to dashboard
       window.location.href = "/";
     } catch (error) {
       console.error("Error setting test role:", error);

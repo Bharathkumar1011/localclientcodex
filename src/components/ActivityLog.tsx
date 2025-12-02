@@ -6,7 +6,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Separator } from '@/components/ui/separator';
 import { Calendar, User, FileText, Target, UserCheck, MessageSquare, Phone, Mail, Video, Linkedin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-
+import { apiFetch } from "@/lib/apiFetch";
+// import { API_BASE_URL } from "@/lib/queryClient"; // if exported
 interface ActivityLogEntry {
   id: number;
   action: string;
@@ -43,12 +44,9 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
       if (leadId) params.set('leadId', leadId.toString());
       if (companyId) params.set('companyId', companyId.toString());
       if (limit) params.set('limit', limit.toString());
-      
-      // return fetch(`/api/activity-log?${params}`).then(res => res.json());
-      return fetch(`/api/activity-log?${params.toString()}`, {
-  credentials: "include",
-}).then(res => res.json());
 
+      return apiFetch(`${API_BASE_URL}/api/activity-log?${params.toString()}`)
+        .then(res => res.json());
     },
   });
 

@@ -1,12 +1,37 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient } from "@tanstack/react-query";
+import { apiFetch } from "./apiFetch";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+
+/* ------------------------------------
+   CLEAN QUERY CLIENT (ONLY ONE)
+------------------------------------- */
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      queryFn: async ({ queryKey }) => {
+        const url = `${API_BASE_URL}${queryKey[0]}`;
+        const res = await apiFetch(url);
+        if (!res.ok) throw new Error(await res.text());
+        return res.json();
+      },
+      retry: false,
+      refetchOnWindowFocus: false,
+      staleTime: 1000,
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+});
+
+/* ------------------------------------
+   Utility helpers
+------------------------------------- */
 
 function getFullUrl(url: string): string {
-  if (url.startsWith('http')) {
-    return url;
-  }
-  return `${API_BASE_URL}${url.startsWith('/') ? url : `/${url}`}`;
+  if (url.startsWith("http")) return url;
+  return `${API_BASE_URL}${url.startsWith("/") ? url : `/${url}`}`;
 }
 
 async function throwIfResNotOk(res: Response) {
@@ -16,54 +41,22 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+/* ------------------------------------
+   apiRequest: POST, PUT, PATCH, DELETE
+------------------------------------- */
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown
 ): Promise<Response> {
   const fullUrl = getFullUrl(url);
-  const res = await fetch(fullUrl, {
+
+  const res = await apiFetch(fullUrl, {
     method,
     headers: data ? { "Content-Type": "application/json" } : {},
     body: data ? JSON.stringify(data) : undefined,
-    credentials: "include",
   });
 
   await throwIfResNotOk(res);
   return res;
 }
-
-type UnauthorizedBehavior = "returnNull" | "throw";
-export const getQueryFn: <T>(options: {
-  on401: UnauthorizedBehavior;
-}) => QueryFunction<T> =
-  ({ on401: unauthorizedBehavior }) =>
-  async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
-    const fullUrl = getFullUrl(url);
-    const res = await fetch(fullUrl, {
-      credentials: "include",
-    });
-
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
-  };
-
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: 1000,
-      retry: false,
-    },
-    mutations: {
-      retry: false,
-    },
-  },
-});

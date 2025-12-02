@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { apiFetch } from "@/lib/apiFetch";
 
 
 
@@ -20,28 +21,36 @@ export default function LeadDetailsModal({
     // -----------------------------
   // UPCOMING TASKS (Scheduled interventions, all leads)
   // -----------------------------
-  const {
-    data: scheduledInterventions = [],
-    isLoading: isLoadingScheduled,
-    error: scheduledError,
+  // const {
+  //   data: scheduledInterventions = [],
+  //   isLoading: isLoadingScheduled,
+  //   error: scheduledError,
+  // } = useQuery({
+  //   queryKey: ["/interventions/scheduled"],
+  //   queryFn: async () => {
+  //     const res = await apiFetch("/interventions/scheduled");
+  //     if (!res.ok) {
+  //       throw new Error("Failed to load scheduled interventions");
+  //     }
+  //     return res.json();
+  //   },
+  // });
+    const {
+    data: leadDetails,
+    isLoading: isLoadingLeadDetails,
   } = useQuery({
-    queryKey: ["/interventions/scheduled"],
+    queryKey: ["lead-details", lead.id],
     queryFn: async () => {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_URL}/interventions/scheduled`,
-        { credentials: "include" }
+      const res = await apiFetch(
+        `${import.meta.env.VITE_API_URL}/leads/${lead.id}/details`
       );
-      if (!res.ok) {
-        throw new Error("Failed to load scheduled interventions");
-      }
+      if (!res.ok) throw new Error("Failed to load lead details");
       return res.json();
     },
+    enabled: open, // fetch only when modal is open
   });
+  const upcomingTasksForLead = leadDetails?.upcomingTasks || [];
 
-  // Filter only tasks for THIS lead
-  const upcomingTasksForLead = (scheduledInterventions as any[]).filter(
-    (task) => task.leadId === lead.id
-  );
 
 
   // -----------------------------
@@ -65,9 +74,8 @@ export default function LeadDetailsModal({
 
   async function fetchRemarks() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks`, {
-        credentials: "include"
-      });
+      const res = await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks`
+    );
       const data = await res.json();
       setRemarks(data);
     } catch (err) {
@@ -77,9 +85,8 @@ export default function LeadDetailsModal({
 
   async function fetchActionables() {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables`, {
-        credentials: "include"
-      });
+    const res = await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables`
+    );
       const data = await res.json();
       setActionables(data);
     } catch (err) {
@@ -94,10 +101,9 @@ export default function LeadDetailsModal({
     if (!newRemark.trim()) return;
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks`, {
+      const res = await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ remark: newRemark })
       });
 
@@ -116,9 +122,8 @@ export default function LeadDetailsModal({
   // -----------------------------
   async function handleDeleteRemark(id: string) {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks/${id}`, {
-        method: "DELETE",
-        credentials: "include",
+      await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/remarks/${id}`, {
+        method: "DELETE"
       });
 
       setRemarks((prev) => prev.filter((r) => r.id !== id));
@@ -136,10 +141,9 @@ export default function LeadDetailsModal({
     if (!newActionable.trim()) return;
 
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables`, {
+      const res = await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ text: newActionable }),
       });
 
@@ -158,10 +162,8 @@ export default function LeadDetailsModal({
   // -----------------------------
   async function handleDeleteActionable(id: string) {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+      await apiFetch(`${import.meta.env.VITE_API_URL}/leads/${lead.id}/actionables/${id}`, {
+        method: "DELETE"      });
 
       setActionables((prev) => prev.filter((a) => a.id !== id));
       toast({ title: "Actionable removed" });
@@ -271,7 +273,7 @@ export default function LeadDetailsModal({
             <div className="space-y-4 border-t pt-4">
             <h3 className="font-semibold text-lg">Upcoming Tasks</h3>
 
-            {isLoadingScheduled ? (
+            {isLoadingLeadDetails ? (
                 <p className="text-sm text-gray-400">Loading tasks...</p>
             ) : upcomingTasksForLead.length === 0 ? (
                 <p className="text-sm text-gray-500 italic">
@@ -279,7 +281,7 @@ export default function LeadDetailsModal({
                 </p>
             ) : (
                 <div className="space-y-3 max-h-60 overflow-y-auto border-t pt-3">
-                {upcomingTasksForLead.map((task) => (
+                {upcomingTasksForLead.map((task: any) => (
                     <div key={task.id} className="border p-3 rounded-md">
                     <p className="text-sm font-medium capitalize">
                         {task.type?.replace("_", " ")}

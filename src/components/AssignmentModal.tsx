@@ -164,7 +164,7 @@ export default function AssignmentModal({
   // Intern assignment mutation for Analysts (to interns)
   const internAssignmentMutation = useMutation({
     mutationFn: async (data: { leadId: number; internIds: string[] }) => {
-      return apiRequest('PATCH', `/api/leads/${data.leadId}/assign-intern`, { internIds: data.internIds });
+      return apiRequest('PATCH', `/leads/${data.leadId}/assign-intern`, { internIds: data.internIds });
     },
     onSuccess: async () => {
       toast({

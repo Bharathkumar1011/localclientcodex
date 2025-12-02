@@ -76,7 +76,7 @@ export function DocumentGateDialog({
 
   // Mutation to progress the stage
   const progressStageMutation = useMutation({
-    mutationFn: () => apiRequest('POST', `/api/leads/${leadId}/progress-stage`, {
+    mutationFn: () => apiRequest('POST', `/leads/${leadId}/progress-stage`, {
       targetStage,
     }),
     onSuccess: async () => {

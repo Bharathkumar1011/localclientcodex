@@ -100,8 +100,14 @@ export default function EngagementGateDialog({
       });
 
       // Invalidate queries and wait for refetch to complete
-      await queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-      await queryClient.invalidateQueries({ queryKey: ['interventions', leadId], refetchType: 'active' });
+      // await queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
+      // await queryClient.invalidateQueries({ queryKey: ['interventions', leadId], refetchType: 'active' });
+      await queryClient.invalidateQueries({ queryKey: [`/leads/${leadId}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/interventions/scheduled`] });
+      await queryClient.invalidateQueries({ queryKey: [`/outreach/lead/${leadId}`] });
+      await queryClient.invalidateQueries({ queryKey: [`/contacts/company/${companyId}`] });
+
+
 
       // Reset form
       setFormData({

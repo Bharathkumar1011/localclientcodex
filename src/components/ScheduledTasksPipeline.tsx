@@ -8,6 +8,7 @@ import type { Intervention, Lead, Company, Contact, User as UserType } from "@/l
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import OutreachCompletionForm from "./OutreachCompletionForm"; // ✅ new component we’ll create next
 // import { useCreateOutreachMutation } from "@/lib/hooks/mutations/outreach";
 
@@ -37,7 +38,10 @@ export default function ScheduledTasksPipeline({ currentUser }: ScheduledTasksPi
   // Fetch scheduled interventions
   const { data: scheduledTasks = [], isLoading } = useQuery<ScheduledIntervention[]>({
     queryKey: ['interventions', 'scheduled'],
+    queryFn: () =>
+      apiRequest("GET", "/interventions/scheduled").then(res => res.json()),
   });
+
 
   console.log("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\ ");
   // 🔍 Debug: check what the backend actually sends

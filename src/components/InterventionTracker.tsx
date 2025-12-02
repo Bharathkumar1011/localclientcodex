@@ -51,8 +51,12 @@ export function InterventionTracker({ leadId, companyName, onClose }: Interventi
   const [editingIntervention, setEditingIntervention] = useState<(Intervention & { user: User }) | null>(null);
 
   // Fetch interventions for this lead
-  const { data: interventions = [], isLoading } = useQuery<(Intervention & { user: User })[]>({
+  const { data: interventions = [], isLoading } = useQuery({
     queryKey: ['/interventions/lead', leadId],
+    queryFn: async () => {
+      const res = await apiRequest('GET', `/interventions/lead/${leadId}`);
+      return res.json();
+    },
     enabled: !!leadId,
   });
 
