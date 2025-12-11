@@ -114,8 +114,10 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     },
   });
 
-  const topPitching = pitchingLeads.slice(0, 3).map((lead: any) => lead.companyName || 'Unnamed');
-  const topMandates = mandatesLeads.slice(0, 3).map((lead: any) => lead.companyName || 'Unnamed');
+  const topPitching = pitchingLeads.slice(0, 3).map((lead: any) => lead.company?.name || lead.company?.companyName || 'Unnamed');
+  const topMandates = mandatesLeads.slice(0, 3).map((lead: any) => lead.company?.name || lead.company?.companyName || 'Unnamed');
+  console.log("Pitching Leads Data:", pitchingLeads);
+  console.log("Mandates Leads Data:", mandatesLeads);
 
   if (isLoading) {
     return (
@@ -237,7 +239,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       </div>
 
       {/* Admin Development Controls */}
-      {currentUser.role === 'admin' && (
+      {/* {currentUser.role === 'admin' && (
         <div className="mt-8 p-4 border border-dashed border-muted-foreground/30 rounded-lg bg-muted/20">
           <div className="flex items-center justify-between">
             <div>
@@ -256,7 +258,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
             </Button>
           </div>
         </div>
-      )}
+      )} */}
     </div>
   );
 }

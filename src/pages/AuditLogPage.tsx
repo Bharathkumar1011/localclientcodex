@@ -232,7 +232,7 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                   <User className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="All users" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className ="bg-gray-50">
                   <SelectItem value="all">All users</SelectItem>
                   {users?.data?.map((user: any) => (
                     <SelectItem key={user.id} value={user.id}>
@@ -301,7 +301,7 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                     {filters.startDate ? format(filters.startDate, "PPP") : "Select start date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
+                <PopoverContent className="w-auto p-0 bg-gray-50">
                   <Calendar
                     mode="single"
                     selected={filters.startDate}
@@ -313,7 +313,7 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
             </div>
 
             {/* End Date */}
-            <div>
+            <div >
               <label className="text-sm font-medium mb-2 block">End Date</label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -326,8 +326,8 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                     {filters.endDate ? format(filters.endDate, "PPP") : "Select end date"}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
+                <PopoverContent className="w-auto p-0 bg-gray-50" >
+                  <Calendar 
                     mode="single"
                     selected={filters.endDate}
                     onSelect={(date) => handleFilterChange('endDate', date)}

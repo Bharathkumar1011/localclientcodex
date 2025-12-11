@@ -180,7 +180,7 @@ function App() {
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>
           <div className="flex h-screen w-full bg-background text-foreground">
-            {showSidebar && <AppSidebar />}
+            {showSidebar && <AppSidebar  />}
             <div className="flex flex-col flex-1 bg-card text-card-foreground">
               <header className="flex items-center justify-between p-4 border-b border-border bg-white">
                 <div className="flex items-center gap-4">

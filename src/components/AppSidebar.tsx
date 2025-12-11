@@ -90,7 +90,7 @@ export function AppSidebar() {
   const canManageUsers = user?.role === 'admin' || user?.role === 'partner';
 
   return (
-    <Sidebar>
+    <Sidebar className="bg-gray-50 border-r border-border">
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Investment Bank CRM</SidebarGroupLabel>
