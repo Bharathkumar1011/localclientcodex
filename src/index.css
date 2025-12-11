@@ -14,40 +14,60 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 236 6% 96%;
-  --foreground: 220 26% 14%;
-  --border: 236 6% 88%;
-  --card: 236 6% 94%;
+
+  --background: 210 20% 98%;        /* slightly brighter, cleaner */
+  --foreground: 220 26% 14%;        /* keep – good contrast */
+
+  --border: 220 10% 82%;            /* darker so borders are visible */
+
+  /* Cards now feel like real "surfaces" */
+  --card: 0 0% 100%;
   --card-foreground: 220 26% 14%;
-  --card-border: 236 6% 86%;
-  --sidebar: 236 6% 92%;
+  --card-border: 220 10% 86%;
+
+  /* Sidebar slightly tinted so it separates from cards */
+  --sidebar: 220 16% 96%;
   --sidebar-foreground: 220 26% 14%;
-  --sidebar-border: 236 6% 84%;
+  --sidebar-border: 220 12% 84%;
+
   --sidebar-primary: 221 83% 53%;
   --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 236 6% 88%;
+  --sidebar-accent: 220 16% 92%;
   --sidebar-accent-foreground: 220 26% 14%;
   --sidebar-ring: 221 83% 53%;
-  --popover: 236 6% 90%;
+
+  /* Popovers should look like dropdowns, modals, menus → white card */
+  --popover: 0 0% 100%;
   --popover-foreground: 220 26% 14%;
-  --popover-border: 236 6% 82%;
+  --popover-border: 220 10% 86%;
+
   --primary: 221 83% 53%;
   --primary-foreground: 210 40% 98%;
-  --secondary: 236 6% 86%;
+
+  /* Slightly darker muted for readability */
+  --secondary: 236 6% 92%;
   --secondary-foreground: 220 26% 14%;
-  --muted: 236 4% 88%;
-  --muted-foreground: 220 14% 46%;
-  --accent: 236 4% 86%;
+  --muted: 236 4% 90%;
+  --muted-foreground: 220 14% 42%;
+
+  /* Same accent philosophy */
+  --accent: 236 4% 92%;
   --accent-foreground: 220 26% 14%;
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
-  --input: 220 26% 24%;
+
+  --input: 220 10% 82%;
   --ring: 221 83% 53%;
+
+  /* Charts left untouched */
   --chart-1: 142 76% 36%;
   --chart-2: 221 83% 53%;
   --chart-3: 38 92% 50%;
   --chart-4: 271 91% 65%;
   --chart-5: 0 84% 60%;
+
+
 
   --font-sans: Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
@@ -55,19 +75,35 @@
 
   --radius: 0.5rem;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(236 6% 88% / 0.05);
-  --shadow-xs: 0px 2px 0px 0px hsl(236 6% 88% / 0.08);
-  --shadow-sm: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 1px 2px -1px hsl(236 6% 88% / 0.12);
-  --shadow: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 1px 2px -1px hsl(236 6% 88% / 0.12);
-  --shadow-md: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 2px 4px -1px hsl(236 6% 88% / 0.16);
-  --shadow-lg: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 4px 6px -1px hsl(236 6% 88% / 0.2);
-  --shadow-xl: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 8px 10px -1px hsl(236 6% 88% / 0.24);
-  --shadow-2xl: 0px 2px 0px 0px hsl(236 6% 88% / 0.12);
+  --shadow-2xs: 0 1px 2px hsl(220 10% 20% / 0.05);
+
+  --shadow-xs:
+    0 1px 2px hsl(220 10% 20% / 0.08),
+    0 1px 1px hsl(220 10% 20% / 0.04);
+
+  --shadow-sm:
+    0 2px 4px hsl(220 10% 20% / 0.10),
+    0 1px 2px hsl(220 10% 20% / 0.06);
+
+  --shadow:
+    0 4px 6px hsl(220 10% 20% / 0.12),
+    0 1px 3px hsl(220 10% 20% / 0.08);
+
+  --shadow-md:
+    0 6px 10px hsl(220 10% 20% / 0.14),
+    0 2px 4px hsl(220 10% 20% / 0.10);
+
+  --shadow-lg:
+    0 10px 15px hsl(220 10% 20% / 0.15),
+    0 3px 6px hsl(220 10% 20% / 0.10);
+
+  --shadow-xl:
+    0 12px 20px hsl(220 10% 20% / 0.18),
+    0 4px 8px hsl(220 10% 20% / 0.12);
+
+  --shadow-2xl:
+    0 25px 50px hsl(220 10% 20% / 0.15);
+
 }
 
 /* =========================================================

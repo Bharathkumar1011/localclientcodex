@@ -111,6 +111,17 @@ export function InterventionTracker({ leadId, companyName, onClose }: Interventi
     },
   });
 
+  // Complete intervention mutation
+  const completeMutation = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("PUT", `/interventions/${id}`, { status: "completed" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/interventions/lead', leadId] });
+      toast({ title: "Intervention marked as completed" });
+    }
+  });
+
+
   const handleSubmit = (data: InterventionFormData) => {
     if (editingIntervention) {
       updateMutation.mutate({ id: editingIntervention.id, data });
@@ -335,6 +346,15 @@ export function InterventionTracker({ leadId, companyName, onClose }: Interventi
                     </div>
                     
                     <div className="flex items-center gap-2 ml-4">
+                      {/* Complete Button */}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => completeMutation.mutate(intervention.id)}
+                        data-testid={`button-complete-intervention-${intervention.id}`}
+                      >
+                        Complete
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"

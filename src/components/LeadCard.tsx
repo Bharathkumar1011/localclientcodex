@@ -198,11 +198,15 @@ export default function LeadCard({
               <div className="flex flex-col">
                 <span className="text-xs text-muted-foreground">Owner:</span>
                 <span className="text-sm font-medium">
-                  {currentUser.firstName || 'Unassigned'}
+                  {lead.createdByUser
+                    ? `${lead.createdByUser.firstName || ''} ${lead.createdByUser.lastName || ''}`.trim() ||
+                      lead.createdByUser.email
+                    : 'Unassigned'}
                 </span>
               </div>
             </div>
           )}
+
           
           {/* Assigned To - 2 columns (Universe) or 3 columns (other stages) */}
           <div className={stage === 'universe' ? 'col-span-2' : 'col-span-3'}>
@@ -429,9 +433,15 @@ export default function LeadCard({
           {stage === 'universe' && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">Owner:</span>
-              <span className="text-sm font-medium">{currentUser.firstName  || 'Unassigned'}</span>
+              <span className="text-sm font-medium">
+                {lead.createdByUser
+                  ? `${lead.createdByUser.firstName || ''} ${lead.createdByUser.lastName || ''}`.trim() ||
+                    lead.createdByUser.email
+                  : 'Unassigned'}
+              </span>
             </div>
           )}
+
 
 
           {/* Assigned To Row */}

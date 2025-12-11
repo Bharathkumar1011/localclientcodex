@@ -20,6 +20,19 @@ import { supabase } from "@/lib/supabaseClient";
 import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import { useEffect } from "react";
+import { ReminderBell } from "@/components/ReminderBell";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel
+} from "@/components/ui/dropdown-menu";
+
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+
+
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -83,6 +96,7 @@ function Router({ isAuthenticated, userRole }: { isAuthenticated: boolean; userR
 function App() {
   const { isAuthenticated, isLoading, needsOrganizationSetup, needsRoleSelection, user } = useAuth();
   console.log("App - isAuthenticated:", isAuthenticated);
+  console.log("AUTH USER → ", user);
 
   // Detect password-recovery redirect from Supabase email link
   useEffect(() => {
@@ -168,41 +182,78 @@ function App() {
           <div className="flex h-screen w-full bg-background text-foreground">
             {showSidebar && <AppSidebar />}
             <div className="flex flex-col flex-1 bg-card text-card-foreground">
-              <header className="flex items-center justify-between p-4 border-b border-border bg-card">
+              <header className="flex items-center justify-between p-4 border-b border-border bg-white">
                 <div className="flex items-center gap-4">
                   {showSidebar && <SidebarTrigger data-testid="button-sidebar-toggle" />}
                   <h1 className="text-lg font-semibold text-primary">Investment Bank CRM</h1>
                 </div>
                 <div className="flex items-center gap-4">
+                  <ReminderBell />     {/* ✅ INSERTED HERE */}
                   <ThemeToggle />
-                  <button
-                    onClick={async () => {
-                      try {
-                        const { data } = await supabase.auth.getSession();
-                        const accessToken = data.session?.access_token;
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="outline-none">
+                      <Avatar className="h-8 w-8 cursor-pointer">
+                        <AvatarFallback>
+                          {user?.firstName?.charAt(0).toUpperCase() ?? "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </DropdownMenuTrigger>
 
-                        if (accessToken) {
-                          await fetch(`${API_BASE_URL}/auth/clear-test-role`, {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: {
-                              Authorization: `Bearer ${accessToken}`
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-56 bg-white dark:bg-neutral-900 shadow-md rounded-md border"
+
+                    >
+
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">
+                        Signed in as
+                      </DropdownMenuLabel>
+
+                      <div className="px-3 py-2">
+                        <p className="font-medium">{user?.firstName} {user?.lastName}</p>
+                        <p className="text-xs text-muted-foreground">{user?.email}</p>
+                      </div>
+
+                      <DropdownMenuSeparator />
+
+                      <DropdownMenuItem>
+                        <span className="text-sm">Role: {user?.role}</span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem>
+                        <span className="text-sm">User ID: {user?.id}</span>
+                      </DropdownMenuItem>
+
+                      <DropdownMenuSeparator />
+
+                      <DropdownMenuItem
+                        className="text-red-600 cursor-pointer"
+                        onClick={async () => {
+                          try {
+                            const { data } = await supabase.auth.getSession();
+                            const accessToken = data.session?.access_token;
+
+                            if (accessToken) {
+                              await fetch(`${API_BASE_URL}/auth/clear-test-role`, {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { Authorization: `Bearer ${accessToken}` },
+                              });
                             }
-                          });
-                        }
 
-                        await supabase.auth.signOut();
-                        window.location.href = '/';
-                      } catch (error) {
-                        console.error('Error during logout:', error);
-                        window.location.href = '/';
-                      }
-                    }}
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                    data-testid="button-logout"
-                  >
-                    Switch Role
-                  </button>
+                            await supabase.auth.signOut();
+                            window.location.href = '/';
+                          } catch (err) {
+                            console.error("Logout error:", err);
+                            window.location.href = '/';
+                          }
+                        }}
+                      >
+                        Sign Out
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                 </div>
               </header>
               <main className="flex-1 overflow-y-auto">

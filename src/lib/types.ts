@@ -94,6 +94,13 @@ export interface Lead {
   contacts?: Contact[];
   assignedUser?: User;
   ownerAnalyst?: User;
+    // ⭐ NEW FIELD (must match backend)
+  createdByUser?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  } | null;
 }
 
 export interface Intervention {
@@ -107,6 +114,7 @@ export interface Intervention {
   notes?: string;
   documentName?: string;
   createdAt?: string;
+  status?: "pending" | "completed"; // <-- add this
   // Joined data
   user?: User;
   lead?: Lead;

@@ -31,7 +31,10 @@ const activityTypeLabels: Record<string, string> = {
   linkedin_messages_dinesh: "LinkedIn Messages (Dinesh)",
 
   // WhatsApp
-  whatsapp: "WhatsApp",
+  // whatsapp: "WhatsApp",
+  whatsapp_kvs: "WhatsApp (KVS)",
+  whatsapp_dinesh: "WhatsApp (Dinesh)",
+
 
   // Emails
   email_d0_analyst: "Email D0 (Analyst)",
@@ -92,8 +95,16 @@ const getActivityConfig = () => {
       return { icon: SiLinkedin, label: 'LinkedIn Messages (Dinesh)', color: 'bg-blue-500' };
 
     // 🔹 Other Platforms
-    case 'whatsapp':
-      return { icon: SiWhatsapp, label: 'WhatsApp', color: 'bg-green-500' };
+    // case 'whatsapp':
+    //   return { icon: SiWhatsapp, label: 'WhatsApp', color: 'bg-green-500' };
+    
+    case 'whatsapp_kvs':
+      return { icon: SiWhatsapp, label: 'WhatsApp (KVS)', color: 'bg-green-500' };
+
+    case 'whatsapp_dinesh':
+      return { icon: SiWhatsapp, label: 'WhatsApp (Dinesh)', color: 'bg-green-500' };
+
+
 
     case 'email_d0_analyst':
       return { icon: Mail, label: 'Email D0 (Analyst)', color: 'bg-red-500' };

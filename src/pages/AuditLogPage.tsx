@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { apiFetch } from "@/lib/apiFetch";
 import { 
   FileText, 
   Search, 
@@ -103,9 +104,8 @@ export default function AuditLogPage() {
       params.append('page', apiFilters.page.toString());
       params.append('limit', apiFilters.limit.toString());
 
-      const res = await fetch(`/api/activity-logs?${params.toString()}`, {
-        credentials: "include"
-      });
+      const res = await apiFetch(`/api/activity-logs?${params.toString()}`);
+
 
       if (!res.ok) throw new Error(`Failed to fetch audit logs: ${res.status}`);
       const json = await res.json();

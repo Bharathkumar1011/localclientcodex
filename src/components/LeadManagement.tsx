@@ -45,11 +45,14 @@ import {
 interface LeadWithDetails extends Lead {
   company: Company;
   contact?: Contact;
-  assignedToUser?: { id: string; firstName: string | null; lastName: string | null; email: string | null; };
-  ownerAnalystUser?: { id: string; firstName: string | null; lastName: string | null; email: string | null; };
-  assignedInterns?: string[] | null;  // ✅ Add this line
-
+  // CHANGED: Removed '| null' and used optional '?' to match User type
+  assignedToUser?: { id: string; firstName?: string; lastName?: string; email?: string; };
+  ownerAnalystUser?: { id: string; firstName?: string; lastName?: string; email?: string; };
+  createdByUser?: { id: string; firstName?: string; lastName?: string; email?: string; };
+  // CHANGED: Removed '| null' to match Lead type
+  assignedInterns?: string[]; 
 }
+
 
 interface LeadManagementProps {
   stage: 'universe' | 'qualified' | 'outreach' | 'pitching' | 'mandates' | 'rejected' | 'won' | 'lost';
@@ -1146,7 +1149,11 @@ useEffect(() => {
                             .filter(Boolean) as User[]
                         : []
                       }
-                      ownerAnalystName={`${currentUser.firstName} ${currentUser.lastName}`.trim()
+                      ownerAnalystName={leadData.createdByUser ? 
+                        `${leadData.createdByUser.firstName || ''} ${leadData.createdByUser.lastName || ''}`.trim() || (leadData.createdByUser.email ?? undefined) :
+                        "Unassigned"
+                      
+
                       }
                             currentUser={currentUser}
                       stage={stage}
@@ -1179,10 +1186,10 @@ useEffect(() => {
                   }
                   
 
-                  ownerAnalystName={leadData.ownerAnalystUser ? 
-                    `${leadData.ownerAnalystUser.firstName || ''} ${leadData.ownerAnalystUser.lastName || ''}`.trim() :
-                    undefined
-                  }
+                    ownerAnalystName={leadData.createdByUser ? 
+                      `${leadData.createdByUser.firstName || ''} ${leadData.createdByUser.lastName || ''}`.trim() || (leadData.createdByUser.email ?? undefined) :
+                      "Unassigned"
+                    }
 
                   
                   currentUser={currentUser}
@@ -1382,7 +1389,12 @@ useEffect(() => {
       <Dialog open={showIndividualLeadForm} onOpenChange={setShowIndividualLeadForm}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto" data-testid="dialog-individual-lead-form">
           <IndividualLeadForm
-          currentUser={currentUser}
+            currentUser={{
+              ...currentUser,
+              // FIX: Ensure these are strings, not undefined
+              firstName: currentUser.firstName || "",
+              lastName: currentUser.lastName || ""
+            }}
             onSuccess={() => {
               setShowIndividualLeadForm(false);
               // Refresh the leads for this stage and related data
@@ -1393,6 +1405,7 @@ useEffect(() => {
           />
         </DialogContent>
       </Dialog>
+
 
       {/* Engagement Gate Dialog - Required before moving to Pitching */}
       {showEngagementGate && (
