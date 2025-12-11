@@ -514,7 +514,7 @@ const ownershipTransferMutation = useMutation({
             <Filter className="h-4 w-4 mr-2" />
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="bg-gray-50">
             <SelectItem value="all">All Roles</SelectItem>
             <SelectItem value="admin">Admins</SelectItem>
             <SelectItem value="partner">Partners</SelectItem>
@@ -677,7 +677,7 @@ const ownershipTransferMutation = useMutation({
                 <SelectTrigger data-testid="select-new-role">
                   <SelectValue placeholder="Select new role" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-50">
                   <SelectItem value="analyst">Analyst</SelectItem>
                   <SelectItem value="partner">Partner</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
@@ -942,7 +942,7 @@ const ownershipTransferMutation = useMutation({
                 <SelectTrigger data-testid="select-transfer-to">
                   <SelectValue placeholder="Select user to receive leads" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-50">
                   {users?.filter(u => u.id !== userToTransfer?.id).map((user) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.firstName} {user.lastName} ({user.role})

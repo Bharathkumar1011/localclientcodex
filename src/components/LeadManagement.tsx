@@ -948,7 +948,7 @@ useEffect(() => {
                 <ArrowUpDown className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-gray-50">
                 <SelectItem value="company-asc">Company (A-Z)</SelectItem>
                 <SelectItem value="company-desc">Company (Z-A)</SelectItem>
                 <SelectItem value="sector-asc">Sector (A-Z)</SelectItem>

@@ -1039,7 +1039,7 @@ export default function OutreachTracker({
                       Record Document Submission
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4" >
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="documentName">Document Type</Label>
@@ -1058,7 +1058,7 @@ export default function OutreachTracker({
                           >
                             <SelectValue placeholder="Select document type" />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-gray-50" >
                             {leadStage === "pitching" && (
                               <>
                                 <SelectItem value="PDM">
