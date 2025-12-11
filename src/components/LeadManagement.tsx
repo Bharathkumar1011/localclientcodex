@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { Lead, Company, Contact, User } from "@/lib/types";
+import { useLocation } from "wouter";
 import {
   Table,
   TableBody,
@@ -73,19 +74,134 @@ export default function LeadManagement({ stage, currentUser }: LeadManagementPro
   const [filterChannelPartner, setFilterChannelPartner] = useState<string>("all");
 
   // 👇 ADD BACK POC state
-  const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
-  const [showOutreachTracker, setShowOutreachTracker] = useState<number | null>(null);
-  const [showInterventionTracker, setShowInterventionTracker] = useState<{leadId: number; companyName: string} | null>(null);
-  const [showEngagementGate, setShowEngagementGate] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
-  const [showMandateConfirmation, setShowMandateConfirmation] = useState<{leadId: number; companyName: string} | null>(null);
-  const [showAssignmentModal, setShowAssignmentModal] = useState<{leadId: number; company: Company;currentAssignedInterns?: string[];} | null>(null);
+  // const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
+
+    // Persistent POC Management
+  const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(() => {
+    const saved = sessionStorage.getItem('pocManagementData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  useEffect(() => {
+    if (showPOCManagement) {
+      sessionStorage.setItem('pocManagementData', JSON.stringify(showPOCManagement));
+    } else {
+      sessionStorage.removeItem('pocManagementData');
+    }
+  }, [showPOCManagement]);
+
+  // const [showOutreachTracker, setShowOutreachTracker] = useState<number | null>(null);
+
+   // Persistent Outreach Tracker (stores lead ID)
+  const [showOutreachTracker, setShowOutreachTracker] = useState<number | null>(() => {
+    const saved = sessionStorage.getItem('outreachTrackerId');
+    return saved ? parseInt(saved) : null;
+  });
+  useEffect(() => {
+    if (showOutreachTracker !== null) {
+      sessionStorage.setItem('outreachTrackerId', showOutreachTracker.toString());
+    } else {
+      sessionStorage.removeItem('outreachTrackerId');
+    }
+  }, [showOutreachTracker]);
+
+
+  // const [showInterventionTracker, setShowInterventionTracker] = useState<{leadId: number; companyName: string} | null>(null);
+
+   // Persistent Intervention Tracker
+  const [showInterventionTracker, setShowInterventionTracker] = useState<{leadId: number; companyName: string} | null>(() => {
+    const saved = sessionStorage.getItem('interventionTrackerData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  useEffect(() => {
+    if (showInterventionTracker) {
+      sessionStorage.setItem('interventionTrackerData', JSON.stringify(showInterventionTracker));
+    } else {
+      sessionStorage.removeItem('interventionTrackerData');
+    }
+  }, [showInterventionTracker]);
+
+  // const [showEngagementGate, setShowEngagementGate] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
+
+   // Persistent Engagement Gate
+  const [showEngagementGate, setShowEngagementGate] = useState<{leadId: number; companyId: number; companyName: string} | null>(() => {
+    const saved = sessionStorage.getItem('engagementGateData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  useEffect(() => {
+    if (showEngagementGate) {
+      sessionStorage.setItem('engagementGateData', JSON.stringify(showEngagementGate));
+    } else {
+      sessionStorage.removeItem('engagementGateData');
+    }
+  }, [showEngagementGate]);
+
+
+  // const [showMandateConfirmation, setShowMandateConfirmation] = useState<{leadId: number; companyName: string} | null>(null);
+
+   // Persistent Mandate Confirmation
+  const [showMandateConfirmation, setShowMandateConfirmation] = useState<{leadId: number; companyName: string} | null>(() => {
+    const saved = sessionStorage.getItem('mandateConfirmationData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  useEffect(() => {
+    if (showMandateConfirmation) {
+      sessionStorage.setItem('mandateConfirmationData', JSON.stringify(showMandateConfirmation));
+    } else {
+      sessionStorage.removeItem('mandateConfirmationData');
+    }
+  }, [showMandateConfirmation]);
+
+  // const [showAssignmentModal, setShowAssignmentModal] = useState<{leadId: number; company: Company;currentAssignedInterns?: string[];} | null>(null);
+
+    // Persistent Assignment Modal
+  const [showAssignmentModal, setShowAssignmentModal] = useState<{leadId: number; company: Company; currentAssignedInterns?: string[];} | null>(() => {
+    const saved = sessionStorage.getItem('assignmentModalData');
+    return saved ? JSON.parse(saved) : null;
+  });
+  useEffect(() => {
+    if (showAssignmentModal) {
+      sessionStorage.setItem('assignmentModalData', JSON.stringify(showAssignmentModal));
+    } else {
+      sessionStorage.removeItem('assignmentModalData');
+    }
+  }, [showAssignmentModal]);
+
   const [selectedLeads, setSelectedLeads] = useState<number[]>([]);
-  const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+  // const [showBulkAssignModal, setShowBulkAssignModal] = useState(false);
+
+   // Persistent Bulk Assign Modal
+  const [showBulkAssignModal, setShowBulkAssignModal] = useState(() => {
+    return sessionStorage.getItem('isBulkAssignOpen') === 'true';
+  });
+  useEffect(() => {
+    sessionStorage.setItem('isBulkAssignOpen', showBulkAssignModal.toString());
+  }, [showBulkAssignModal]);
+
+
   const [bulkAssignToUser, setBulkAssignToUser] = useState<string>("");
-  const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
+  // const [showCsvUploadModal, setShowCsvUploadModal] = useState(false);
+
+   // Persistent CSV Upload Modal
+  const [showCsvUploadModal, setShowCsvUploadModal] = useState(() => {
+    return sessionStorage.getItem('isCsvUploadOpen') === 'true';
+  });
+  useEffect(() => {
+    sessionStorage.setItem('isCsvUploadOpen', showCsvUploadModal.toString());
+  }, [showCsvUploadModal]);
+
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvUploadResults, setCsvUploadResults] = useState<any>(null);
-  const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(false);
+  // const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(false);
+    // Initialize state from SessionStorage to survive tab switches/re-renders
+  const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(() => {
+    return sessionStorage.getItem('isAddLeadOpen') === 'true';
+  });
+
+  // Keep SessionStorage in sync
+  useEffect(() => {
+    sessionStorage.setItem('isAddLeadOpen', showIndividualLeadForm.toString());
+  }, [showIndividualLeadForm]);
+
   
   // Fetch leads for this stage
   // Universe tab shows all leads across all stages
@@ -111,6 +227,7 @@ useEffect(() => {
         stage === "universe"
           ? ["leads", "stage", "all"]
           : ["leads", "stage", stage],
+          refetchOnWindowFocus: false,
       queryFn: async () => {
         const endpoint =
           stage === "universe"
@@ -128,6 +245,7 @@ useEffect(() => {
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['/users'],
     enabled: ['partner', 'admin'].includes(currentUser.role),
+    refetchOnWindowFocus: false
     // enabled: showBulkAssignModal && ['partner', 'admin'].includes(currentUser.role),
 
   });
@@ -232,6 +350,7 @@ useEffect(() => {
   const { data: allInterns = [] } = useQuery<User[]>({
     queryKey: ['/users/interns'],
     queryFn: async () => {
+      refetchOnWindowFocus: false;
       if (currentUser.role === 'analyst') {
         // Fetch analyst's assigned interns
         const response = await apiRequest('GET', `/analysts/${currentUser.id}/interns`);

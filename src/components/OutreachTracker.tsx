@@ -344,7 +344,17 @@ export default function OutreachTracker({
   onViewPOC
 }: OutreachTrackerProps) {
   const { toast } = useToast();
-  const [showAddForm, setShowAddForm] = useState(false);
+  // const [showAddForm, setShowAddForm] = useState(false);
+    // Persistent Add Activity Form State
+  const [showAddForm, setShowAddForm] = useState(() => {
+    // Unique key per lead so it doesn't leak to other leads
+    return sessionStorage.getItem(`isAddActivityOpen-${leadId}`) === 'true';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem(`isAddActivityOpen-${leadId}`, showAddForm.toString());
+  }, [showAddForm, leadId]);
+
 
   const [formData, setFormData] = useState({
     activityType: "linkedin_request_self",

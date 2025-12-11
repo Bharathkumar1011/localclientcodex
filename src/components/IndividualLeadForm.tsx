@@ -136,53 +136,6 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
   };
 
 
-  // Popup state management with localStorage
-  const [isPopupOpen, setIsPopupOpen] = useState(() => {
-    const storedPopupState = localStorage.getItem('popupOpen');
-    return storedPopupState === 'true';
-  });
-
-  // useCallback to memoize the open/close popup functions
-  const openPopup = useCallback(() => {
-    setIsPopupOpen(true);
-  }, []);
-
-  const closePopup = useCallback(() => {
-    setIsPopupOpen(false);
-  }, []);
-
-  // Synchronize popup state across tabs using localStorage
-  useEffect(() => {
-    localStorage.setItem('popupOpen', isPopupOpen.toString());
-
-    // Handle changes from other tabs/windows using the 'storage' event
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === 'popupOpen' && event.newValue !== null) {
-        setIsPopupOpen(event.newValue === 'true');
-      }
-    };
-
-    // Handle tab visibility change
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        const storedPopupState = localStorage.getItem('popupOpen');
-        const isStoredOpen = storedPopupState === 'true';
-
-        if (isPopupOpen !== isStoredOpen) {
-          setIsPopupOpen(isStoredOpen);
-        }
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [isPopupOpen]); // Dependency array includes isPopupOpen for saving to localStorage
-
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
@@ -197,29 +150,7 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
 
       
       <CardContent>
-        {/* Show Popup */}
-        {isPopupOpen && (
-          <div className="popup">
-            <Card className="w-full max-w-4xl mx-auto">
-              <CardHeader>
-                <CardTitle>Create Individual Lead</CardTitle>
-                <CardDescription>
-                  Add a new company to the pipeline. Company names are automatically deduplicated to prevent duplicates.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                    {/* Form Fields */}
-                    <Button onClick={closePopup}>Close Popup</Button>
-                    <Button type="submit">Create Lead</Button>
-                  </form>
-                </Form>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      
+
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">

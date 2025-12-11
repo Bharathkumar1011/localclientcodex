@@ -207,7 +207,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       <div className="grid gap-6 md:grid-cols-2">
         <ActivityLog limit={10} />
 
-        <Card>
+        {/* <Card>
           <CardHeader>
             <CardTitle>Pipeline Overview</CardTitle>
           </CardHeader>
@@ -241,7 +241,7 @@ export default function Dashboard({ currentUser }: DashboardProps) {
                 ));
             })()}
           </CardContent>
-        </Card>
+        </Card> */}
       </div>
 
       {/* Admin Development Controls */}
