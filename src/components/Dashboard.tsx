@@ -18,6 +18,7 @@ interface DashboardMetrics {
   qualified: number;
   inOutreach: number;
   inPitching: number;
+  rejected: number; 
   leadsCountByStage: { [stage: string]: number };
   userRole?: string;
   isPersonalized?: boolean;
@@ -173,6 +174,11 @@ export default function Dashboard({ currentUser }: DashboardProps) {
       value: topMandates.length,
       icon: FileText,
       topLeads: topMandates,
+    },
+    {
+      title: "Rejected",
+      value: metricsData.leadsCountByStage['rejected'] || 0,
+      icon: TrendingDown,
     },
   ];
 
