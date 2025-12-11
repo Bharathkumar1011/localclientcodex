@@ -40,16 +40,25 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
 
   const { data: activities, isLoading } = useQuery({
     queryKey,
-    queryFn: () => {
+    queryFn: async () => {  // Changed to async function for clarity
       const params = new URLSearchParams();
       if (leadId) params.set('leadId', leadId.toString());
       if (companyId) params.set('companyId', companyId.toString());
       if (limit) params.set('limit', limit.toString());
 
-      return apiFetch(`${API_BASE_URL}/api/activity-log?${params.toString()}`)
-        .then(res => res.json());
+      const res = await apiFetch(`/api/activity-logs?${params.toString()}`);
+      const json = await res.json();
+
+      // ✅ FIX: Extract the array from the response object
+      if (Array.isArray(json)) {
+        return json;
+      } else if (json && Array.isArray(json.data)) {
+        return json.data;
+      }
+      return [];
     },
   });
+
 
   const getActionIcon = (action: string, entityType: string) => {
     if (action.includes('created') || action.includes('added')) {
@@ -129,7 +138,7 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
-            No activity logs found
+            No activity logs foundNo activity logs found
           </div>
         </CardContent>
       </Card>
