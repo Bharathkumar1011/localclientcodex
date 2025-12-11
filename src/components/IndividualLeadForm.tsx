@@ -11,8 +11,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useToast } from "@/hooks/use-toast";
-import { Building2, Users, MapPin, Globe, DollarSign, FileText, UserCheck } from "lucide-react";
+import { Building2, Users, MapPin, Globe, DollarSign, FileText, UserCheck, ChevronsUpDown,List,Pencil  } from "lucide-react";
+
 import { channel } from "diagnostics_channel";
+
+
 
 // Form validation schema - matches server-side expectations
 const individualLeadFormSchema = z.object({
@@ -33,26 +36,19 @@ type IndividualLeadFormData = z.infer<typeof individualLeadFormSchema>;
 
 // Predefined sector options for consistency
 const SECTOR_OPTIONS = [
-  "Technology",
-  "Healthcare", 
+  "Chemicals & Materials",
+  "Speciality Chemicals",
+  "Renewables",
+  "Logistics",
+  "IT",
+  "IPP",
+  "Industrials",
+  "Healthcare",
+  "Pharma",
   "Financial Services",
-  "Manufacturing",
-  "Retail & E-commerce",
-  "Real Estate",
-  "Energy & Utilities",
-  "Education",
-  "Agriculture",
-  "Transportation & Logistics",
-  "Media & Entertainment",
-  "Telecommunications",
-  "Aerospace & Defense",
-  "Food & Beverage",
-  "Pharmaceuticals",
-  "Automotive",
-  "Construction",
-  "Mining",
-  "Chemicals",
-  "Other"
+  "Consumers",
+  "Auto Components",
+  "Others"
 ];
 
 interface IndividualLeadFormProps {
@@ -69,6 +65,7 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCustomSector, setIsCustomSector] = useState(false);
 
   // Fetch users for assignment dropdown (analysts and partners only)
   const { data: users = [] } = useQuery({
@@ -134,6 +131,7 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
       setIsSubmitting(false);
     }
   };
+  
 
 
   return (
@@ -186,24 +184,56 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="text-red-500">Sector *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-sector">
-                            <SelectValue placeholder="Select sector" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent className="bg-gray-50">
-                          {SECTOR_OPTIONS.map((sector) => (
-                            <SelectItem key={sector} value={sector}>
-                              {sector}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <div className="flex gap-2">
+                        {/* 1. Dropdown Mode */}
+                        {!isCustomSector ? (
+                          <Select
+                            onValueChange={field.onChange}
+                            value={SECTOR_OPTIONS.includes(field.value) ? field.value : ""}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="flex-1">
+                                <SelectValue placeholder="Select sector" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent className="h-[400px] bg-gray-50 overflow-y-auto">
+                              {SECTOR_OPTIONS.map((s) => (
+                                <SelectItem key={s} value={s}>{s}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          /* 2. Manual Text Input Mode */
+                          <FormControl>
+                            <Input 
+                              {...field} 
+                              placeholder="Type custom sector name..." 
+                              autoFocus 
+                              className="flex-1 border-primary/50"
+                            />
+                          </FormControl>
+                        )}
+
+                        {/* Toggle Button */}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => {
+                            setIsCustomSector(!isCustomSector);
+                            field.onChange(""); // Clear value when switching modes
+                          }}
+                          title={isCustomSector ? "Switch to list" : "Type manually"}
+                        >
+                          {isCustomSector ? <List className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+                        </Button>
+                      </div>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
+
+
 
                 <FormField
                   control={form.control}
