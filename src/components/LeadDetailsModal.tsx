@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { apiFetch } from "@/lib/apiFetch";
+import { useQueryClient } from "@tanstack/react-query";
 
 
 
@@ -17,6 +18,8 @@ export default function LeadDetailsModal({
   lead,
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();   // <-- add this line
+
 
     // -----------------------------
   // UPCOMING TASKS (Scheduled interventions, all leads)
@@ -62,6 +65,56 @@ export default function LeadDetailsModal({
   // Actionables state
   const [actionables, setActionables] = useState<any[]>([]);
   const [newActionable, setNewActionable] = useState("");
+
+    // Edit mode for lead/company fields
+  // const [isEditingLead, setIsEditingLead] = useState(false);
+  const [isEditingLead, setIsEditingLead] = useState(() => {
+  return sessionStorage.getItem(`lead-is-editing-${company.id}`) === "true";
+});
+
+useEffect(() => {
+  sessionStorage.setItem(
+    `lead-is-editing-${company.id}`,
+    isEditingLead.toString()
+  );
+}, [isEditingLead, company.id]);
+
+type EditCompany = {
+  name: string;
+  sector: string;
+  location: string;
+  website: string;
+  channelPartner: string;
+  businessDescription: string;
+  revenueInrCr: string;
+  ebitdaInrCr: string;
+  patInrCr: string;
+};
+  // Local editable copy of company fields
+const [editCompany, setEditCompany] = useState(() => {
+  const saved = sessionStorage.getItem(`lead-edit-company-${company.id}`);
+  if (saved) return JSON.parse(saved);
+
+  return {
+    name: company.name || "",
+    sector: company.sector || "",
+    location: company.location || "",
+    website: (company as any).website || "",
+    channelPartner: (company as any).channelPartner || "",
+    businessDescription: (company as any).businessDescription || "",
+    revenueInrCr: company.revenueInrCr?.toString?.() ?? "",
+    ebitdaInrCr: company.ebitdaInrCr?.toString?.() ?? "",
+    patInrCr: company.patInrCr?.toString?.() ?? "",
+  };
+});
+useEffect(() => {
+  sessionStorage.setItem(
+    `lead-edit-company-${company.id}`,
+    JSON.stringify(editCompany)
+  );
+}, [editCompany, company.id]);
+
+
 
   // -----------------------------
   // LOAD remarks + actionables when modal opens
@@ -180,39 +233,263 @@ export default function LeadDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+        <DialogHeader className="flex items-center justify-between">
           <DialogTitle>Lead Details</DialogTitle>
+          <div className="flex gap-2">
+            {isEditingLead ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Reset local edits and exit edit mode
+                    setEditCompany({
+                      name: company.name || "",
+                      sector: company.sector || "",
+                      location: company.location || "",
+                      website: (company as any).website || "",
+                      channelPartner: (company as any).channelPartner || "",
+                      businessDescription: (company as any).businessDescription || "",
+                      revenueInrCr: company.revenueInrCr ?? "",
+                      ebitdaInrCr: company.ebitdaInrCr ?? "",
+                      patInrCr: company.patInrCr ?? "",
+                    });
+                    setIsEditingLead(false);
+                  }}
+                >
+                  Cancel
+                </Button>
+
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      // 1) Send update to backend (updates companies table in Neon)
+                      await apiRequest("PUT", `/companies/${company.id}`, {
+                        name: editCompany.name,
+                        sector: editCompany.sector,
+                        location: editCompany.location,
+                        website: editCompany.website || null,
+                        channelPartner: editCompany.channelPartner || null,
+                        businessDescription: editCompany.businessDescription || null,
+                        revenueInrCr: editCompany.revenueInrCr === "" ? null : editCompany.revenueInrCr,
+                        ebitdaInrCr: editCompany.ebitdaInrCr === "" ? null : editCompany.ebitdaInrCr,
+                        patInrCr: editCompany.patInrCr === "" ? null : editCompany.patInrCr,
+                      });
+
+                      // 2) Sync local company object so this modal shows new values immediately
+                      company.name = editCompany.name;
+                      company.sector = editCompany.sector;
+                      company.location = editCompany.location;
+                      (company as any).website = editCompany.website || null;
+                      (company as any).channelPartner = editCompany.channelPartner || null;
+                      (company as any).businessDescription = editCompany.businessDescription || null;
+                      company.revenueInrCr =
+                        editCompany.revenueInrCr === "" ? null : editCompany.revenueInrCr;
+                      company.ebitdaInrCr =
+                        editCompany.ebitdaInrCr === "" ? null : editCompany.ebitdaInrCr;
+                      company.patInrCr =
+                        editCompany.patInrCr === "" ? null : editCompany.patInrCr;
+
+                      // 3) (Optional but recommended) refresh parent lists next time
+                      await queryClient.invalidateQueries({ queryKey: ["leads"] });
+                      await queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+                      
+                      // 👇 Add these two lines:
+                      sessionStorage.removeItem(`lead-edit-company-${company.id}`);
+                      sessionStorage.removeItem(`lead-is-editing-${company.id}`);
+
+                      toast({ title: "Lead updated" });
+                      setIsEditingLead(false);
+                    } catch (err: any) {
+                      toast({
+                        title: "Update failed",
+                        description: err?.message || "Could not update lead",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                >
+                  Save
+                </Button>
+              </>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => setIsEditingLead(true)}>
+                Edit Lead
+              </Button>
+            )}
+          </div>
         </DialogHeader>
+
 
         <div className="space-y-4 text-sm py-4">
 
-          {/* Company Fields */}
+        {/* Company Fields + Financials */}
+        <div className="space-y-3">
+          <h3 className="font-semibold text-lg">Company Information</h3>
+
+          {/* Company Name */}
           <div>
             <h4 className="font-semibold">Company Name</h4>
-            <p>{company.name}</p>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.name}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, name: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.name || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Sector */}
           <div>
             <h4 className="font-semibold">Sector</h4>
-            <p>{company.sector || "Not provided"}</p>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.sector}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, sector: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.sector || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Location */}
           <div>
-            <h4 className="font-semibold">Headquartered City</h4>
-            <p>{company.location || "Not provided"}</p>
+            <h4 className="font-semibold">Location</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.location}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, location: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.location || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Website */}
           <div>
-            <h4 className="font-semibold">Year Established</h4>
-            <p>{company.foundedYear || "Not provided"}</p>
+            <h4 className="font-semibold">Website</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.website}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, website: e.target.value }))
+                }
+              />
+            ) : (company as any).website ? (
+              <a
+                href={(company as any).website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                {(company as any).website}
+              </a>
+            ) : (
+              <p>Not provided</p>
+            )}
           </div>
 
+          {/* Channel Partner */}
           <div>
-            <h4 className="font-semibold">Financials</h4>
-            <p>Revenue: {company.revenueInrCr || "N/A"} Cr</p>
-            <p>EBITDA: {company.ebitdaInrCr || "N/A"} Cr</p>
-            <p>PAT: {company.patInrCr || "N/A"} Cr</p>
+            <h4 className="font-semibold">Channel Partner</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.channelPartner}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, channelPartner: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{(company as any).channelPartner || "Not provided"}</p>
+            )}
           </div>
+
+          {/* Business Description */}
+          <div>
+            <h4 className="font-semibold">Business Description</h4>
+            {isEditingLead ? (
+              <textarea
+                className="border rounded px-2 py-1 w-full text-sm"
+                rows={3}
+                value={editCompany.businessDescription}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({
+                    ...c,
+                    businessDescription: e.target.value,
+                  }))
+                }
+              />
+            ) : (
+              <p className="whitespace-pre-wrap">
+                {(company as any).businessDescription || "Not provided"}
+              </p>
+            )}
+          </div>
+
+          {/* Financials */}
+          <div className="pt-2 space-y-1">
+            <h3 className="font-semibold text-lg">Financial Information</h3>
+
+            <div>
+              <h4 className="font-semibold">Revenue (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.revenueInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, revenueInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.revenueInrCr ?? "N/A"}</p>
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold">EBITDA (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.ebitdaInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, ebitdaInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.ebitdaInrCr ?? "N/A"}</p>
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold">PAT (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.patInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, patInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.patInrCr ?? "N/A"}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
 
           {/* Remarks Section */}
           <div className="space-y-4 border-t pt-4">

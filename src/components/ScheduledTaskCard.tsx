@@ -70,8 +70,12 @@ export default function ScheduledTaskCard({
   const { lead, user, scheduledAt, notes } = intervention;
   const activityType = intervention.activityType || intervention.type;
   const { company, contact } = lead;
+  // const readableActivityLabel =
+  // activityTypeLabels[activityType] || activityType || "Unknown";
   const readableActivityLabel =
-  activityTypeLabels[activityType] || activityType || "Unknown";
+  intervention.type === "meeting" && intervention.meetingMode
+    ? (intervention.meetingMode === "online" ? "Online meeting" : "In-person meeting")
+    : (activityTypeLabels[activityType] || activityType || "Unknown");
 
   // Get activity type icon and label
   console.log("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");

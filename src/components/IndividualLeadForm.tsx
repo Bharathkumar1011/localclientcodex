@@ -94,6 +94,34 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
     },
   });
 
+    // 1. Load saved data on mount
+  useEffect(() => {
+    const savedData = sessionStorage.getItem("individualLeadFormData");
+    if (savedData) {
+      const parsed = JSON.parse(savedData);
+      // Reset form with saved data
+      form.reset(parsed);
+      // If there was a custom sector saved, make sure we switch to custom mode
+      if (parsed.sector && !SECTOR_OPTIONS.includes(parsed.sector)) {
+        setIsCustomSector(true);
+      }
+    }
+  }, [form]); // Run once on mount (technically depends on form)
+
+  // 2. Watch for changes and save to session storage
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      sessionStorage.setItem("individualLeadFormData", JSON.stringify(value));
+    });
+    return () => subscription.unsubscribe();
+  }, [form.watch]);
+
+  // 3. Clear storage on successful submit
+  // (You need to update your mutation onSuccess)
+
+
+
+
   // Create individual lead mutation
   const createLeadMutation = useMutation({
     mutationFn: (data: IndividualLeadFormData) =>
@@ -109,6 +137,9 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
       await queryClient.invalidateQueries({ queryKey: ['/api/companies'], refetchType: 'active' });
       await queryClient.invalidateQueries({ queryKey: ['/dashboard/metrics'], refetchType: 'active' });
       
+      // 👇 ADD THIS LINE: Clear the saved draft
+      sessionStorage.removeItem("individualLeadFormData");
+
       form.reset();
       onSuccess?.();
     },
@@ -421,18 +452,25 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
               />
             </div>
 
+
             {/* Form Actions */}
-            <div className="flex justify-end space-x-3 pt-6 border-t">
-              {onCancel && (
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={onCancel}
-                  data-testid="button-cancel"
-                >
-                  Cancel
-                </Button>
-              )}
+              <div className="flex justify-end space-x-3 pt-6 border-t">
+                {onCancel && (
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      // 👇 Clear the saved form draft so it doesn't reappear next time
+                      sessionStorage.removeItem("individualLeadFormData");
+                      // 👇 Close the popup
+                      onCancel();
+                    }}
+                    data-testid="button-cancel"
+                  >
+                    Cancel
+                  </Button>
+                )}
+
               
               <Button 
                 type="submit" 

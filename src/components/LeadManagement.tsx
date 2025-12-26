@@ -31,6 +31,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { Lead, Company, Contact, User } from "@/lib/types";
+import LeadDetailsModal from "./LeadDetailsModal";
+
 import { useLocation } from "wouter";
 import {
   Table,
@@ -103,6 +105,27 @@ export default function LeadManagement({ stage, currentUser }: LeadManagementPro
       sessionStorage.removeItem('outreachTrackerId');
     }
   }, [showOutreachTracker]);
+  
+  // Newly added Lead Details Modal state now persistent across tab switches
+    const [showLeadDetails, setShowLeadDetails] = useState<{
+    lead: LeadWithDetails;
+    company: Company;
+  } | null>(() => {
+    const saved = sessionStorage.getItem("leadDetailsModalData");
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    if (showLeadDetails) {
+      sessionStorage.setItem(
+        "leadDetailsModalData",
+        JSON.stringify(showLeadDetails)
+      );
+    } else {
+      sessionStorage.removeItem("leadDetailsModalData");
+    }
+  }, [showLeadDetails]);
+
 
 
   // const [showInterventionTracker, setShowInterventionTracker] = useState<{leadId: number; companyName: string} | null>(null);
@@ -893,10 +916,27 @@ useEffect(() => {
       }
     };
 
+    if (showLeadDetails) {
+      return (
+        <LeadDetailsModal
+          open={true}
+          lead={showLeadDetails.lead}
+          company={showLeadDetails.company}
+          onClose={() => {
+            sessionStorage.removeItem("leadDetailsModalData");
+            sessionStorage.removeItem(
+              `lead-edit-company-${showLeadDetails.company.id}`
+            );
+            sessionStorage.removeItem(
+              `lead-is-editing-${showLeadDetails.company.id}`
+            );
+            setShowLeadDetails(null);
+          }}
+        />
+      );
+    }
 
-
-
-
+  
 
   if (showPOCManagement) {
     return (
@@ -905,7 +945,10 @@ useEffect(() => {
           companyId={showPOCManagement.companyId}
           companyName={showPOCManagement.companyName}
           startInEditMode={true}
-          onClose={() => setShowPOCManagement(null)}
+          onClose={() => {
+            sessionStorage.removeItem(`poc-edit-contacts-${showPOCManagement.companyId}`);
+            setShowPOCManagement(null);
+          }}
           onSave={() => {
             // Invalidate and refetch leads data to update POC status
             queryClient.invalidateQueries({ queryKey: ['leads', 'stage', stage] });
@@ -917,7 +960,8 @@ useEffect(() => {
                 return Array.isArray(key) && key[0] === 'leads' && key[1] === 'stage';
               }
             });
-            // Close the dialog after saving
+            // Clear draft and close dialog
+            sessionStorage.removeItem(`poc-edit-contacts-${showPOCManagement.companyId}`);
             setShowPOCManagement(null);
           }}
         />
@@ -1284,6 +1328,13 @@ useEffect(() => {
                       onManageOutreach={handleOutreachClick}
                       onMoveToPitching={handleMoveToPitching}
                       onMoveToMandates={handleMoveToMandates}
+                      // 👇 add this
+                      onViewDetails={() =>
+                        setShowLeadDetails({
+                          lead: leadData,
+                          company: leadData.company,
+                        })
+                      }
                     />
                   </div>
                 </div>
@@ -1321,6 +1372,13 @@ useEffect(() => {
                   onManageOutreach={handleOutreachClick}
                   onMoveToPitching={handleMoveToPitching}
                   onMoveToMandates={handleMoveToMandates}
+                 // 👇 add this here as well
+                  onViewDetails={() =>
+                    setShowLeadDetails({
+                      lead: leadData,
+                      company: leadData.company,
+                    })
+                  }
                 />
               )}
             </div>

@@ -109,6 +109,7 @@ export interface Intervention {
   leadId: number;
   userId: string;
   type: 'linkedin_message' | 'call' | 'whatsapp' | 'email' | 'meeting' | 'document';
+  meetingMode?: "online" | "inperson" | null; // ✅ ADD HERE
   scheduledAt: string;
   activityType?: string;  // ✅ add this line
   notes?: string;

@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, CheckCircle, UserCheck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -41,13 +41,28 @@ export default function EngagementGateDialog({
 }: EngagementGateDialogProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    meetingType: 'meeting' as const,
-    scheduledAt: '',
-    notes: '',
-    defaultPocId: '',
-    backupPocId: ''
+  // Keep form data even if dialog unmounts while navigating
+  const [formData, setFormData] = useState(() => {
+    const saved = sessionStorage.getItem(`engagement-gate-${leadId}`);
+    return saved
+      ? JSON.parse(saved)
+      : {
+          meetingType: "meeting" as const,
+          scheduledAt: "",
+          notes: "",
+          defaultPocId: "",
+          backupPocId: "",
+        };
   });
+
+  // Save to sessionStorage whenever formData changes
+  useEffect(() => {
+    sessionStorage.setItem(
+      `engagement-gate-${leadId}`,
+      JSON.stringify(formData)
+    );
+  }, [formData, leadId]);
+
 
   // Fetch contacts for POC selection
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery<Contact[]>({
@@ -82,9 +97,10 @@ export default function EngagementGateDialog({
       // Create the meeting intervention
       await apiRequest('POST', `/interventions`, {
         leadId,
-        type: formData.meetingType,
+        type: "meeting", // always meeting (backend expects this) [web:930]
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
-        notes: formData.notes
+        notes: formData.notes,
+        meetingMode: formData.meetingType, // "online" | "inperson"
       });
 
       // Move the lead to pitching stage with POC information
@@ -109,7 +125,18 @@ export default function EngagementGateDialog({
 
 
 
-      // Reset form
+      // // Reset form
+      // setFormData({
+      //   meetingType: 'meeting',
+      //   scheduledAt: '',
+      //   notes: '',
+      //   defaultPocId: '',
+      //   backupPocId: ''
+      // });
+
+      // onSuccess();
+
+       // Reset form
       setFormData({
         meetingType: 'meeting',
         scheduledAt: '',
@@ -118,7 +145,12 @@ export default function EngagementGateDialog({
         backupPocId: ''
       });
 
+      // Clear persisted data so next time starts fresh
+      sessionStorage.removeItem(`engagement-gate-${leadId}`);
+
       onSuccess();
+
+
     } catch (error: any) {
       toast({
         title: "Error",
@@ -138,6 +170,7 @@ export default function EngagementGateDialog({
       defaultPocId: '',
       backupPocId: ''
     });
+    sessionStorage.removeItem(`engagement-gate-${leadId}`);
     onClose();
   };
 
@@ -168,7 +201,8 @@ export default function EngagementGateDialog({
                 <SelectValue placeholder="Select meeting type" />
               </SelectTrigger>
               <SelectContent className="bg-gray-50">
-                <SelectItem value="meeting">Meeting</SelectItem>
+               <SelectItem value="online">Online</SelectItem>
+               <SelectItem value="inperson">In-person</SelectItem>            
               </SelectContent>
             </Select>
           </div>

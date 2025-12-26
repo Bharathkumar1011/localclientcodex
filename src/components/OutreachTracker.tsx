@@ -346,40 +346,87 @@ export default function OutreachTracker({
   const { toast } = useToast();
   // const [showAddForm, setShowAddForm] = useState(false);
     // Persistent Add Activity Form State
-  const [showAddForm, setShowAddForm] = useState(() => {
-    // Unique key per lead so it doesn't leak to other leads
-    return sessionStorage.getItem(`isAddActivityOpen-${leadId}`) === 'true';
-  });
+// Keep Add Outreach popup + form data even when switching tabs
+    const [showAddForm, setShowAddForm] = useState(() => {
+      const saved = sessionStorage.getItem(`outreach-add-form-open-${leadId}`);
+      return saved === "true";
+    });
 
-  useEffect(() => {
-    sessionStorage.setItem(`isAddActivityOpen-${leadId}`, showAddForm.toString());
-  }, [showAddForm, leadId]);
+    const [formData, setFormData] = useState(() => {
+      const saved = sessionStorage.getItem(`outreach-add-form-data-${leadId}`);
+      return saved
+        ? JSON.parse(saved)
+        : {
+            activityType: "linkedin_request_self",
+            status: "completed" as
+              | "completed"
+              | "scheduled"
+              | "sent"
+              | "received"
+              | "follow_up"
+              | "invalid",
+            contactDate: "",
+            contactTime: "",
+            followUpDate: "",
+            followUpTime: "",
+            notes: ""
+          };
+    });
 
+    // persist to sessionStorage whenever they change
+    useEffect(() => {
+      sessionStorage.setItem(
+        `outreach-add-form-open-${leadId}`,
+        String(showAddForm)
+      );
+    }, [showAddForm, leadId]);
 
-  const [formData, setFormData] = useState({
-    activityType: "linkedin_request_self",
-    status: "completed" as
-      | "completed"
-      | "scheduled"
-      | "sent"
-      | "received"
-      | "follow_up"
-      | "invalid",
-    contactDate: "",
-    contactTime: "",
-    followUpDate: "",
-    followUpTime: "",
-    notes: ""
-  });
+    useEffect(() => {
+      sessionStorage.setItem(
+        `outreach-add-form-data-${leadId}`,
+        JSON.stringify(formData)
+      );
+    }, [formData, leadId]);
+
   const [selectedStatusTag, setSelectedStatusTag] = useState<string>("");
 
   // Document collection state for Pitching/Mandates stages
-  const [showDocumentForm, setShowDocumentForm] = useState(false);
-  const [documentFormData, setDocumentFormData] = useState({
-    documentName: "",
-    uploadDate: "",
-    notes: ""
+  // const [showDocumentForm, setShowDocumentForm] = useState(false);
+  // const [documentFormData, setDocumentFormData] = useState({
+  //   documentName: "",
+  //   uploadDate: "",
+  //   notes: ""
+  // });
+
+  
+    // --- START FIX: Persist state in sessionStorage ---
+  const [showDocumentForm, setShowDocumentForm] = useState(() => {
+    const saved = sessionStorage.getItem(`doc-form-open-${leadId}`);
+    return saved === "true";
   });
+
+  const [documentFormData, setDocumentFormData] = useState(() => {
+    const saved = sessionStorage.getItem(`doc-form-data-${leadId}`);
+    return saved 
+      ? JSON.parse(saved) 
+      : {
+          documentName: "",
+          uploadDate: "", // Or use format(new Date(), "yyyy-MM-dd") if you prefer
+          notes: ""
+        };
+  });
+
+  // Save to storage whenever state changes
+  useEffect(() => {
+    sessionStorage.setItem(`doc-form-open-${leadId}`, String(showDocumentForm));
+  }, [showDocumentForm, leadId]);
+
+  useEffect(() => {
+    sessionStorage.setItem(`doc-form-data-${leadId}`, JSON.stringify(documentFormData));
+  }, [documentFormData, leadId]);
+  // --- END FIX ---
+
+
 
   // Google Drive Link state for Pitching stage
   const [driveLink, setDriveLink] = useState("");
@@ -484,15 +531,21 @@ export default function OutreachTracker({
   const createActivityMutation = useMutation({
     mutationFn: (data: any) => apiRequest("POST", "/outreach", data),
     onSuccess: async (_data, variables: any) => {
+      // clear persisted popup + form state
+      sessionStorage.removeItem(`outreach-add-form-open-${leadId}`);
+      sessionStorage.removeItem(`outreach-add-form-data-${leadId}`);
+
       const hasFollowUp =
         typeof variables.followUpDate === "string" &&
         variables.followUpDate.length > 0;
+
       toast({
         title: "Success",
         description: hasFollowUp
           ? "Outreach activity added and scheduled in Scheduled Tasks"
           : "Outreach activity added"
       });
+
       await queryClient.invalidateQueries({
         queryKey: ["/outreach/lead", leadId],
         refetchType: "active"
@@ -527,32 +580,39 @@ export default function OutreachTracker({
   });
 
   // Create document mutation for Pitching/Mandates stages
-  const createDocumentMutation = useMutation({
-    mutationFn: (data: any) => apiRequest("POST", "/interventions", data),
-    onSuccess: async () => {
-      toast({
-        title: "Success",
-        description: "Document recorded successfully"
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["/interventions/lead", leadId],
-        refetchType: "active"
-      });
-      setShowDocumentForm(false);
-      setDocumentFormData({
-        documentName: "",
-        uploadDate: "",
-        notes: ""
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to record document",
-        variant: "destructive"
-      });
-    }
-  });
+const createDocumentMutation = useMutation({
+  mutationFn: (data: any) => apiRequest("POST", "/interventions", data),
+  onSuccess: async () => {
+    // --- FIX: clear persisted state so next time starts clean ---
+    sessionStorage.removeItem(`doc-form-open-${leadId}`);
+    sessionStorage.removeItem(`doc-form-data-${leadId}`);
+    // -----------------------------------------------------------
+
+    toast({
+      title: "Success",
+      description: "Document recorded successfully"
+    });
+
+    await queryClient.invalidateQueries({
+      queryKey: ["/interventions/lead", leadId],
+      refetchType: "active"
+    });
+
+    setShowDocumentForm(false);
+    setDocumentFormData({
+      documentName: "",
+      uploadDate: "",
+      notes: ""
+    });
+  },
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to record document",
+      variant: "destructive"
+    });
+  }
+});
 
   const handleSubmit = () => {
     if (!formData.notes.trim()) {
@@ -993,7 +1053,8 @@ export default function OutreachTracker({
                 <div className="flex justify-end gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => setShowAddForm(false)}
+                    onClick={() => {setShowAddForm(false);
+                      sessionStorage.removeItem(`outreach-add-form-data-${leadId}`);}}
                     data-testid="button-cancel"
                   >
                     Cancel

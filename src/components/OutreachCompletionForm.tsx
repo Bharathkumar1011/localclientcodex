@@ -23,23 +23,31 @@ export default function OutreachCompletionForm({ task, onClose }: OutreachComple
   const [followUpDate, setFollowUpDate] = useState("");
   const [followUpTime, setFollowUpTime] = useState("");
 
-  // ⭐⭐⭐ ADDED — BACKEND MUTATIONS
+  // FIX 1: Update completeMutation to use the correct PUT endpoint
   const completeMutation = useMutation({
-    mutationFn: async (payload: any) =>
-      apiRequest("POST", "/interventions/complete", payload).then((r) => r.json()),
-
+    mutationFn: async (payload: { id: number; notes: string }) => 
+      // Change POST /interventions/complete to PUT /interventions/${id}
+      apiRequest("PUT", `/interventions/${payload.id}`, { 
+        status: "completed",
+        notes: payload.notes 
+      }).then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries(["interventions", "scheduled"]);
+      // Keep invalidation logic
+      queryClient.invalidateQueries({ queryKey: ["interventions", "scheduled"] });
+      // Also invalidate the lead specific query to update UI everywhere
+      queryClient.invalidateQueries({ queryKey: ["/interventions/lead"] }); 
       onClose();
     }
   });
 
-  const createFollowUpMutation = useMutation({
-    mutationFn: async (payload: any) =>
-      apiRequest("POST", "/interventions", payload).then((r) => r.json()),
 
+
+  // FIX 2: Sanitize the type for follow-up tasks
+  const createFollowUpMutation = useMutation({
+    mutationFn: async (payload: any) => 
+      apiRequest("POST", "/interventions", payload).then((r) => r.json()),
     onSuccess: () => {
-      queryClient.invalidateQueries(["interventions", "scheduled"]);
+      queryClient.invalidateQueries({ queryKey: ["interventions", "scheduled"] });
     }
   });
   // ⭐⭐⭐ END ADDED BLOCK
@@ -74,19 +82,29 @@ export default function OutreachCompletionForm({ task, onClose }: OutreachComple
     localStorage.setItem("completedTasks", JSON.stringify(existingTasks));
 
     // 🔹 2. Tell backend this task is completed
-    completeMutation.mutate({
-      interventionId: task.id,
-      notes,
-      status: "completed",
+    // 2. Fix the complete call
+    completeMutation.mutate({ 
+      id: task.id, // Pass ID separately for URL
+      notes, 
     });
 
-    // 🔹 3. Create follow-up task if date/time entered
+
+    // 3. Fix the follow-up creation
     if (followUpDate && followUpTime) {
+      // Map specific types (e.g. call_d1_dinesh) to generic types (e.g. call)
+      let validType = "call"; // default
+      const lowerType = task.type?.toLowerCase() || "";
+      
+      if (lowerType.includes("linkedin")) validType = "linkedin_message";
+      else if (lowerType.includes("whatsapp")) validType = "whatsapp";
+      else if (lowerType.includes("email")) validType = "email";
+      else if (lowerType.includes("meeting")) validType = "meeting";
+      
       createFollowUpMutation.mutate({
         leadId: task.lead.id,
-        type: task.type,
-        scheduledAt: `${followUpDate}T${followUpTime}:00`,
-        notes: `Follow-up for task ${task.id}`,
+        type: validType, // Use the sanitized generic type
+        scheduledAt: new Date(`${followUpDate}T${followUpTime}`).toISOString(),
+        notes: `Follow-up for task: ${task.notes || "Previous task"}`,
       });
     }
   };

@@ -13,7 +13,7 @@ import {
   XCircle
 } from "lucide-react";
 import { useState } from "react";
-import LeadDetailsModal from "@/components/LeadDetailsModal";
+// import LeadDetailsModal from "@/components/LeadDetailsModal";
 import { RejectLeadDialog } from "./RejectLeadDialog";
 import type { Lead, Company, Contact, User as UserType } from "@/lib/types";
 
@@ -38,6 +38,7 @@ interface LeadCardProps {
   onMoveToPitching?: (leadId: number) => void;
   onMoveToMandates?: (leadId: number) => void;
   onReject?: () => void; // Callback when lead is rejected
+  onViewDetails?: () => void;
 }
 
 
@@ -60,11 +61,12 @@ export default function LeadCard({
   onManageOutreach,
   onMoveToPitching,
   onMoveToMandates,
-  onReject
+  onReject,
+  onViewDetails  
 }: LeadCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
-  const [showLeadDetails, setShowLeadDetails] = useState(false);
+  // const [showLeadDetails, setShowLeadDetails] = useState(false);
   console.log("currentUserName", currentUser.firstName);
 
 
@@ -376,6 +378,20 @@ export default function LeadCard({
                 Manage Outreach
               </Button>
             )}
+
+              {/* 👇 New View Lead button */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewDetails?.();   // tells parent to open LeadDetailsModal
+              }}
+              className="h-6 text-xs"
+            >
+              View Lead
+            </Button>
+
             
             {/* Reject Button - visible on all stages except rejected, won, lost */}
             {!['rejected', 'won', 'lost'].includes(lead.stage) && (
@@ -475,6 +491,7 @@ export default function LeadCard({
                   >
                     <UserX className="h-3 w-3 mr-1" />
                     Reassign
+                    
                   </Button>
                 )}
               </>
@@ -592,7 +609,10 @@ export default function LeadCard({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowLeadDetails(true)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onViewDetails?.();
+                      }}
                     className="h-7 text-xs"
                   >
                     <ExternalLink className="h-3 w-3 mr-1" />
@@ -659,7 +679,7 @@ export default function LeadCard({
                         <a 
                           href={company.collateral} 
                           target="_blank" 
-                          rel="noopener noreferrer"
+                          rel="noopenLeadDetailsModal er noreferrer"
                           className="block text-primary hover:underline"
                         >
                           View Collateral
@@ -678,13 +698,6 @@ export default function LeadCard({
         </CardContent>
       )}
     </Card>
-    <LeadDetailsModal
-      open={showLeadDetails}
-      onClose={() => setShowLeadDetails(false)}
-      company={company}
-      lead={lead}
-      contact={contact}
-    />
 
     {/* Reject Lead Dialog */}
     <RejectLeadDialog

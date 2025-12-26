@@ -49,7 +49,23 @@ const emptyContact: ContactFormData = {
 export default function POCManagement({ companyId, companyName, onClose, onSave, startInEditMode = false }: POCManagementProps) {
   const { toast } = useToast();
   const [isEditMode, setIsEditMode] = useState(false);
-  const [editingContacts, setEditingContacts] = useState<ContactFormData[]>([]);
+  // const [editingContacts, setEditingContacts] = useState<ContactFormData[]>([]);
+  // Load any draft edits for this company from sessionStorage
+  const [editingContacts, setEditingContacts] = useState<ContactFormData[]>(() => {
+    const saved = sessionStorage.getItem(`poc-edit-contacts-${companyId}`);
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Whenever user types, keep a draft in sessionStorage
+  useEffect(() => {
+    if (editingContacts.length > 0) {
+      sessionStorage.setItem(
+        `poc-edit-contacts-${companyId}`,
+        JSON.stringify(editingContacts)
+      );
+    }
+  }, [editingContacts, companyId]);
+
   const [errors, setErrors] = useState<{[index: number]: Partial<Record<keyof ContactFormData, string>>}>({});
   
   // ✅ NEW: Track which individual contact is being edited
@@ -77,6 +93,20 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
   // ✅ FIXED: Initialize contacts - removed isFormEmpty bug
   useEffect(() => {
     if (isLoading) return;
+
+
+      // If we already have a draft in sessionStorage, do NOT overwrite it
+  const hasDraft = sessionStorage.getItem(`poc-edit-contacts-${companyId}`);
+  if (hasDraft && editingContacts.length > 0) {
+    // Still need to sync savedContactIds from DB
+    const newSavedIds: (number | null)[] = [null, null, null];
+    contacts.forEach((contact, index) => {
+      if (index < 3) newSavedIds[index] = contact.id;
+    });
+    setSavedContactIds(newSavedIds);
+    return;
+  }
+
 
     console.log('[POCManagement] Initializing with contacts:', contacts);
 
@@ -355,6 +385,8 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
         title: "POCs Updated",
         description: `${editingContacts.length} contact(s) saved for ${companyName}`,
       });
+      // Clear draft after successful save
+      sessionStorage.removeItem(`poc-edit-contacts-${companyId}`);
       
       setIsEditMode(false);
       onSave?.();
