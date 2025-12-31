@@ -354,6 +354,9 @@ export default function OutreachTracker({
 
     const [formData, setFormData] = useState(() => {
       const saved = sessionStorage.getItem(`outreach-add-form-data-${leadId}`);
+    const meetingLabel = (mode?: "online" | "inperson" | null) =>
+      mode === "online" ? "Online" : mode === "inperson" ? "In-person" : "Meeting";
+
       return saved
         ? JSON.parse(saved)
         : {

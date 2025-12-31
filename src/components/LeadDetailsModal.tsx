@@ -82,6 +82,7 @@ useEffect(() => {
 type EditCompany = {
   name: string;
   sector: string;
+  subSector: string; // Added subSector field
   location: string;
   website: string;
   channelPartner: string;
@@ -98,6 +99,7 @@ const [editCompany, setEditCompany] = useState(() => {
   return {
     name: company.name || "",
     sector: company.sector || "",
+    subSector: (company as any).subSector || "", // Initialize subSector
     location: company.location || "",
     website: (company as any).website || "",
     channelPartner: (company as any).channelPartner || "",
@@ -246,6 +248,7 @@ useEffect(() => {
                     setEditCompany({
                       name: company.name || "",
                       sector: company.sector || "",
+                      subSector: (company as any).subSector || "", // Reset subSector
                       location: company.location || "",
                       website: (company as any).website || "",
                       channelPartner: (company as any).channelPartner || "",
@@ -268,6 +271,7 @@ useEffect(() => {
                       await apiRequest("PUT", `/companies/${company.id}`, {
                         name: editCompany.name,
                         sector: editCompany.sector,
+                        subSector: editCompany.subSector || null, // Include subSector field
                         location: editCompany.location,
                         website: editCompany.website || null,
                         channelPartner: editCompany.channelPartner || null,
@@ -280,6 +284,7 @@ useEffect(() => {
                       // 2) Sync local company object so this modal shows new values immediately
                       company.name = editCompany.name;
                       company.sector = editCompany.sector;
+                      (company as any).subSector = editCompany.subSector || null; // Update subSector
                       company.location = editCompany.location;
                       (company as any).website = editCompany.website || null;
                       (company as any).channelPartner = editCompany.channelPartner || null;
@@ -359,6 +364,23 @@ useEffect(() => {
               <p>{company.sector || "Not provided"}</p>
             )}
           </div>
+
+          {/* Sub-sector */}
+          <div>
+            <h4 className="font-semibold">Sub-sector</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.subSector}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, subSector: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{(company as any).subSector || "Not provided"}</p>
+            )}
+          </div>
+
 
           {/* Location */}
           <div>

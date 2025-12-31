@@ -32,6 +32,9 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { Lead, Company, Contact, User } from "@/lib/types";
 import LeadDetailsModal from "./LeadDetailsModal";
+import * as XLSX from "xlsx";
+
+
 
 import { useLocation } from "wouter";
 import {
@@ -69,11 +72,21 @@ export default function LeadManagement({ stage, currentUser }: LeadManagementPro
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState<string>("company-asc");
   const [filterSector, setFilterSector] = useState<string>("all");
+  const [filterSubSector, setFilterSubSector] = useState<string>("all"); // 👈 ADDED
   const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all"); // 👈 ADD BACK
   const [filterStage, setFilterStage] = useState<string>("all");
   const [filterLocation, setFilterLocation] = useState<string>("all");
   const [filterChannelPartner, setFilterChannelPartner] = useState<string>("all");
+  // ✅ Helper: supports both API styles (subSector or sub_sector)
+  const getCompanySubSector = (company: any) =>
+    company?.subSector ?? company?.sub_sector ?? "";
+
+
+  // ✅ Reset sub-sector whenever sector filter changes
+    useEffect(() => {
+      setFilterSubSector("all");
+    }, [filterSector]);
 
   // 👇 ADD BACK POC state
   // const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
@@ -280,7 +293,7 @@ useEffect(() => {
     },
     onSuccess: (data: any) => {
       // Invalidate the correct query key based on stage
-      queryClient.invalidateQueries({ queryKey: ['leads', stage === 'universe' ? 'all' : 'stage', stage] });
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
       queryClient.invalidateQueries({ queryKey: ['/users/analytics'] });
       toast({
         title: "Bulk Assignment Complete",
@@ -300,75 +313,114 @@ useEffect(() => {
   });
 
   // CSV upload mutation
-  const csvUploadMutation = useMutation({
-    mutationFn: async (csvData: string) => {
-      return apiRequest('POST', '/companies/csv-upload', { csvData });
-    },
-    // onSuccess: (data: any) => {
-    //   // Invalidate the correct query key based on stage
-    //   queryClient.invalidateQueries({ queryKey: ['leads', stage === 'universe' ? 'all' : 'stage', stage] });
-    //   setCsvUploadResults(data.results);
-    //   toast({
-    //     title: "CSV Upload Complete",
-    //     description: data.message || 'CSV processed successfully',
-    //   });
-    //   setCsvFile(null);
-    // },
-      onSuccess: async (data: any) => {
-        try {
-          const results = data.results || {};
-          setCsvUploadResults(results);
+  // const csvUploadMutation = useMutation({
+  //   mutationFn: async (csvData: string) => {
+  //     return apiRequest('POST', '/companies/csv-upload', { csvData });
+  //   },
+  //   // onSuccess: (data: any) => {
+  //   //   // Invalidate the correct query key based on stage
+  //   //   queryClient.invalidateQueries({ queryKey: ['leads', stage === 'universe' ? 'all' : 'stage', stage] });
+  //   //   setCsvUploadResults(data.results);
+  //   //   toast({
+  //   //     title: "CSV Upload Complete",
+  //   //     description: data.message || 'CSV processed successfully',
+  //   //   });
+  //   //   setCsvFile(null);
+  //   // },
+  //     onSuccess: async (data: any) => {
+  //       try {
+  //         const results = data.results || {};
+  //         setCsvUploadResults(results);
 
-          // ✅ Step 2: Notify that companies were created
-          toast({
-            title: "Companies Uploaded",
-            description: `${results.successfulCompanies || 0} companies created successfully.`,
-          });
+  //         // ✅ Step 2: Notify that companies were created
+  //         toast({
+  //           title: "Companies Uploaded",
+  //           description: `${results.successfulCompanies || 0} companies created successfully.`,
+  //         });
 
-          // ✅ Step 3: If the backend returned createdCompanyIds, create leads for them
-          if (results.createdCompanyIds && results.createdCompanyIds.length > 0) {
-            const leadResponse = await apiRequest('POST', '/leads/bulk-create', {
-              companyIds: results.createdCompanyIds,
-              ownerId: currentUser.id, // Make sure currentUser is defined in your component
-            });
+  //         // // ✅ Step 3: If the backend returned createdCompanyIds, create leads for them
+  //         // if (results.createdCompanyIds && results.createdCompanyIds.length > 0) {
+  //         //   const leadResponse = await apiRequest('POST', '/leads/bulk-create', {
+  //         //     companyIds: results.createdCompanyIds,
+  //         //     ownerId: currentUser.id, // Make sure currentUser is defined in your component
+  //         //   });
 
-            // Parse the response (apiRequest likely returns Response, so get JSON)
-            const leadData = await leadResponse.json();
+  //         //   // Parse the response (apiRequest likely returns Response, so get JSON)
+  //         //   const leadData = await leadResponse.json();
 
-            toast({
-              title: "Leads Created",
-              description: `${leadData.total || 0} new leads created successfully.`,
-            });
-          }
+  //         //   toast({
+  //         //     title: "Leads Created",
+  //         //     description: `${leadData.total || 0} new leads created successfully.`,
+  //         //   });
+  //         // }
 
-          // ✅ Step 4: Refresh the leads list in the UI
-          queryClient.invalidateQueries({
-            queryKey: ['leads', 'stage', stage],
-          });
-          queryClient.invalidateQueries({
-            queryKey: ['/dashboard/metrics'],
-          });
+  //         // ✅ Step 4: Refresh the leads list in the UI
+  //         // ✅ Refresh ALL lead lists (universe + stage views)
+  //         queryClient.invalidateQueries({ queryKey: ["leads"] });
 
-          setCsvFile(null);
-        } catch (err: any) {
-          console.error('Error after CSV upload:', err);
-          toast({
-            title: "Error",
-            description: err.message || "Failed to create leads after upload",
-            variant: "destructive",
-          });
-        }
-      },
-    onError: (error: any) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to process CSV file",
-        variant: "destructive",
-      });
-    },
-  });
+  //         // ✅ If you show counters/metrics anywhere
+  //         queryClient.invalidateQueries({ queryKey: ["/dashboard/metrics"] });
+  //         queryClient.invalidateQueries({ queryKey: ["/users/analytics"] });
 
- 
+
+  //         setCsvFile(null);
+  //       } catch (err: any) {
+  //         console.error('Error after CSV upload:', err);
+  //         toast({
+  //           title: "Error",
+  //           description: err.message || "Failed to create leads after upload",
+  //           variant: "destructive",
+  //         });
+  //       }
+  //     },
+  //   onError: (error: any) => {
+  //     toast({
+  //       title: "Error",
+  //       description: error.message || "Failed to process CSV file",
+  //       variant: "destructive",
+  //     });
+  //   },
+  // });
+
+
+  // ✅ Corrected CSV upload mutation with lead creation
+ const csvUploadMutation = useMutation({
+  mutationFn: async (csvData: string) => {
+    const res = await apiRequest("POST", "/companies/csv-upload", { csvData });
+    const json = await res.json();
+
+    if (!res.ok) {
+      throw new Error(json?.message || "CSV upload failed");
+    }
+
+    return json; // ✅ now onSuccess receives parsed JSON
+  },
+
+  onSuccess: (data: any) => {
+    const results = data.results || {};
+    setCsvUploadResults(results);
+
+    toast({
+      title: "Companies Uploaded",
+      description: `${results.successfulCompanies ?? 0} companies created successfully.`,
+    });
+
+    // ✅ refresh *all* lead queries (universe uses ["leads","stage","all"])
+    queryClient.invalidateQueries({ queryKey: ["leads"] });
+    queryClient.invalidateQueries({ queryKey: ["/dashboard/metrics"] });
+
+    setCsvFile(null);
+  },
+
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to process CSV file",
+      variant: "destructive",
+    });
+  },
+});
+
     // Fetch interns for displaying assigned intern names in LeadCard
   const { data: allInterns = [] } = useQuery<User[]>({
     queryKey: ['/users/interns'],
@@ -466,6 +518,21 @@ useEffect(() => {
       .filter((sector): sector is string => Boolean(sector));
     return Array.from(new Set(sectors)).sort();
   }, [leads]);
+
+  const uniqueSubSectors = useMemo(() => {
+    // First, restrict to the chosen sector (so subsector dropdown stays relevant)
+    const base = filterSector === "all"
+      ? leads
+      : leads.filter((lead) => lead.company.sector === filterSector);
+
+    const subSectors = base
+      .map((lead) => getCompanySubSector(lead.company))
+      .filter((ss): ss is string => Boolean(ss && ss.trim()));
+
+    return Array.from(new Set(subSectors)).sort((a, b) => a.localeCompare(b));
+  }, [leads, filterSector]);
+
+
   const uniqueLocations = useMemo(() => {
     const locations = leads
       .map(lead => lead.company.location)
@@ -503,6 +570,12 @@ useEffect(() => {
     if (filterSector !== "all") {
       result = result.filter(lead => lead.company.sector === filterSector);
     }
+
+    // ✅ Apply sub-sector filter
+    if (filterSubSector !== "all") {
+      result = result.filter((lead) => getCompanySubSector(lead.company) === filterSubSector);
+    }
+
 
     // Apply assigned to filter
     if (filterAssignedTo !== "all") {
@@ -573,7 +646,7 @@ useEffect(() => {
 
 
     return result;
-  }, [leads, searchTerm, filterSector, filterAssignedTo, filterStatus, filterStage, sortBy, stage]);
+  }, [leads, searchTerm, filterSector,filterSubSector, filterAssignedTo, filterStatus, filterStage, sortBy, stage]);
 
   
 
@@ -1144,6 +1217,26 @@ useEffect(() => {
               </SelectContent>
             </Select>
 
+            {/* ✅ Sub-sector Filter */}
+            <Select
+              value={filterSubSector}
+              onValueChange={setFilterSubSector}
+              disabled={uniqueSubSectors.length === 0}
+            >
+              <SelectTrigger className="w-full sm:w-auto min-w-[160px]" data-testid="select-filter-subsector">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="All Sub-sectors" />
+              </SelectTrigger>
+
+              <SelectContent className="bg-gray-50">
+                <SelectItem value="all">All Sub-sectors</SelectItem>
+                {uniqueSubSectors.map((ss) => (
+                  <SelectItem key={ss} value={ss}>{ss}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+
             {/* Assigned To Filter */}
             <Select value={filterAssignedTo} onValueChange={setFilterAssignedTo}>
               <SelectTrigger className="w-full sm:w-auto min-w-[140px]" data-testid="select-filter-assignee">
@@ -1215,12 +1308,13 @@ useEffect(() => {
               </Select>
             )}
             {/* Clear Filters Button */}
-            {(filterSector !== "all" || filterAssignedTo !== "all" || filterStatus !== "all" || filterStage !== "all" || searchTerm) && (
+            {(filterSector !== "all" ||  filterSubSector !== "all" || filterAssignedTo !== "all" || filterStatus !== "all" || filterStage !== "all" || searchTerm) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setFilterSector("all");
+                  setFilterSubSector("all"); // ✅ Reset sub-sector filter
                   setFilterAssignedTo("all");
                   setFilterStatus("all");
                   setFilterStage("all");
