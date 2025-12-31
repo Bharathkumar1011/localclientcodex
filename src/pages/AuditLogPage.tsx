@@ -27,16 +27,35 @@ interface ActivityLog {
   action: string;
   entityType: string;
   entityName: string;
-  details: string;
-  userFirstName: string;
-  userLastName: string;
-  userEmail: string;
-  timestamp: string;
-  createdAt?: string;   // add this
-  updatedAt?: string;   // optional but often present in APIs
+
+  // ✅ Backend commonly provides these (matches the working Home ActivityLog)
+  description?: string;
+  oldValue?: string;
+  newValue?: string;
+
+  // Some older/alternate responses may still use "details"
+  details?: string;
+
+  // ✅ Backend typically returns user as a nested object
+  user?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  };
+
+  // Backward-compat (if any endpoint returns flat user fields)
+  userFirstName?: string;
+  userLastName?: string;
+  userEmail?: string;
+
+  timestamp?: string;
+  createdAt?: string;
+  updatedAt?: string;
   companyName?: string;
   leadId?: string;
 }
+
 
 interface AuditLogFilters {
   search: string;
@@ -51,19 +70,20 @@ interface AuditLogFilters {
 
 const actionTypes = [
   "lead_created",
-  "lead_updated", 
+  "lead_updated",
   "lead_assigned",
   "lead_reassigned",
   "lead_stage_changed",
   "company_created",
   "company_updated",
-  "poc_created",
-  "poc_updated",
-  "outreach_logged",
+  "contact_added",
+  "contact_updated",
+  "intervention_logged",
   "user_created",
   "user_updated",
-  "user_role_changed"
+  "user_role_changed",
 ];
+
 
 export default function AuditLogPage() {
   const [filters, setFilters] = useState<AuditLogFilters>({
@@ -128,21 +148,37 @@ export default function AuditLogPage() {
 console.log('🧠 auditLogsResponse:', auditLogsResponse);
 
   const { data: usersResponse } = useQuery({
-    queryKey: ['/users'],
-    enabled: true
+    queryKey: ["/api/users"],
+    queryFn: async () => {
+      const res = await apiFetch("/api/users");
+      if (!res.ok) throw new Error(`Failed to fetch users: ${res.status}`);
+      return res.json();
+    },
   });
 
+
   const { data: companiesResponse } = useQuery({
-    queryKey: ['/companies'],
-    enabled: true
+  queryKey: ["/api/companies"],
+  queryFn: async () => {
+    const res = await apiFetch("/api/companies");
+    if (!res.ok) throw new Error(`Failed to fetch companies: ${res.status}`);
+    return res.json();
+  },
   });
+
 
   // const auditLogs = auditLogsResponse as { data?: ActivityLog[], total?: number } | undefined;
   const auditLogs = auditLogsResponse ?? { data: [], total: 0 };
   console.log("✅ Final normalized logs object:", auditLogs);
   
-  const users = usersResponse as { data?: any[] } | undefined;
-  const companies = companiesResponse as { data?: any[] } | undefined;
+  const usersList = Array.isArray(usersResponse)
+    ? usersResponse
+    : (usersResponse?.data ?? []);
+
+  const companiesList = Array.isArray(companiesResponse)
+    ? companiesResponse
+    : (companiesResponse?.data ?? []);
+
 
   const handleFilterChange = (key: keyof AuditLogFilters, value: any) => {
     setFilters(prev => ({
@@ -178,6 +214,34 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
+  
+  // ✅ Audit page should render the same "who did what" message as the Home Activity Log.
+// Backend may return either nested user {firstName,lastName,email} OR flat fields.
+const getUserName = (log: ActivityLog) => {
+  const first = log.user?.firstName ?? log.userFirstName ?? '';
+  const last = log.user?.lastName ?? log.userLastName ?? '';
+  const full = `${first} ${last}`.trim();
+  return full || (log.user?.email ?? log.userEmail ?? 'Unknown user');
+};
+
+const getUserEmail = (log: ActivityLog) => {
+  return log.user?.email ?? log.userEmail ?? '';
+};
+
+const getLogMessage = (log: ActivityLog) => {
+  // Prefer the same field used by the working Home ActivityLog component
+  if (log.description) return log.description;
+
+  // Fallback for stage changes if only old/new values exist
+  if (log.action === 'lead_stage_changed' && (log.oldValue || log.newValue)) {
+    return `Lead stage changed from ${log.oldValue ?? '?'} to ${log.newValue ?? '?'}`;
+  }
+
+  // Older responses may have details
+  if (log.details) return log.details;
+
+  return '';
+};
 
   return (
     <div className="container mx-auto p-6 max-w-7xl">
@@ -232,9 +296,9 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                   <User className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="All users" />
                 </SelectTrigger>
-                <SelectContent className ="bg-gray-50">
+                <SelectContent className="bg-gray-50 max-h-72 overflow-y-auto">
                   <SelectItem value="all">All users</SelectItem>
-                  {users?.data?.map((user: any) => (
+                  {usersList.map((user: any) => (
                     <SelectItem key={user.id} value={user.id}>
                       {user.firstName} {user.lastName} ({user.email})
                     </SelectItem>
@@ -254,11 +318,11 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                   <Building className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="All companies" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-50 max-h-72 overflow-y-auto">
                   <SelectItem value="all">All companies</SelectItem>
-                  {companies?.data?.map((company: any) => (
-                    <SelectItem key={company.id} value={company.id}>
-                      {company.name}
+                  {companiesList.map((company: any) => (
+                    <SelectItem key={company.id} value={String(company.id)}>
+                      {company.name ?? company.companyName ?? JSON.stringify(company)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -276,7 +340,7 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                   <Activity className="h-4 w-4 mr-2" />
                   <SelectValue placeholder="All actions" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="bg-gray-50 max-h-72 overflow-y-auto">
                   <SelectItem value="all">All actions</SelectItem>
                   {actionTypes.map((action) => (
                     <SelectItem key={action} value={action}>
@@ -380,14 +444,16 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                           </Badge>
                           <span className="text-sm text-muted-foreground">
                             {/* {format(new Date(log.timestamp), "PPp")} */}
-                            {format(new Date(log.createdAt ?? log.timestamp), "PPp")}
+                            {format(new Date(log.createdAt ?? log.timestamp ?? Date.now()), "PPp")}
 
                           </span>
                         </div>
                         
                         <div className="mb-2">
-                          <span className="font-medium">{log.userFirstName} {log.userLastName}</span>
-                          <span className="text-muted-foreground text-sm ml-2">({log.userEmail})</span>
+                          <span className="font-medium">{getUserName(log)}</span>
+                          {getUserEmail(log) && (
+                            <span className="text-muted-foreground text-sm ml-2">({getUserEmail(log)})</span>
+                          )}
                         </div>
 
                         <div className="text-sm">
@@ -400,9 +466,9 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                           )}
                         </div>
 
-                        {log.details && (
+                        {getLogMessage(log) && (
                           <div className="text-sm text-muted-foreground mt-2 p-2 bg-muted rounded">
-                            {log.details}
+                            {getLogMessage(log)}
                           </div>
                         )}
                       </div>
@@ -432,7 +498,7 @@ console.log('🧠 auditLogsResponse:', auditLogsResponse);
                       variant="outline"
                       size="sm"
                       onClick={() => handleFilterChange('page', filters.page + 1)}
-                      disabled={filters.page >= Math.ceil(auditLogs?.total || 1 / filters.limit)}
+                      disabled={filters.page >= Math.ceil((auditLogs?.total || 1) / filters.limit)}
                       data-testid="button-next-page"
                     >
                       Next
