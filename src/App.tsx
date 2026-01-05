@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/useAuth";
 import { AppSidebar } from "@/components/AppSidebar";
+import { LeadFiltersProvider } from "@/context/LeadFiltersContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import Landing from "@/pages/Landing";
 import Home from "@/pages/Home";
@@ -179,8 +180,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <SidebarProvider style={style as React.CSSProperties}>
-          <div className="flex h-screen w-full bg-background text-foreground">
-            {showSidebar && <AppSidebar  />}
+          <LeadFiltersProvider>
+            <div className="flex h-screen w-full bg-background text-foreground">
+              {showSidebar && <AppSidebar />}
             <div className="flex flex-col flex-1 bg-card text-card-foreground">
               <header className="flex items-center justify-between p-4 border-b border-border bg-white">
                 <div className="flex items-center gap-4">
@@ -260,8 +262,9 @@ function App() {
                 <Router isAuthenticated={isAuthenticated} userRole={userRole} />
               </main>
             </div>
-          </div>
-        </SidebarProvider>
+              </div>
+            </LeadFiltersProvider>
+          </SidebarProvider>
         <Toaster />
       </TooltipProvider>
     </QueryClientProvider>

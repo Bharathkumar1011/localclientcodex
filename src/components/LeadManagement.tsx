@@ -1,4 +1,4 @@
-import { useState, useMemo,  useEffect  } from "react";
+import { useState, useMemo,  useEffect, useRef  } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import type { Lead, Company, Contact, User } from "@/lib/types";
 import LeadDetailsModal from "./LeadDetailsModal";
+import { useLeadFilters } from "@/context/LeadFiltersContext";
 import * as XLSX from "xlsx";
 
 
@@ -69,24 +70,67 @@ export default function LeadManagement({ stage, currentUser }: LeadManagementPro
   console.log('LeadManagement rendered for stage:', stage);
   console.log('currentUser:', currentUser);
   const { toast } = useToast();
-  const [searchTerm, setSearchTerm] = useState("");
-  const [sortBy, setSortBy] = useState<string>("company-asc");
-  const [filterSector, setFilterSector] = useState<string>("all");
-  const [filterSubSector, setFilterSubSector] = useState<string>("all"); // 👈 ADDED
-  const [filterAssignedTo, setFilterAssignedTo] = useState<string>("all");
-  const [filterStatus, setFilterStatus] = useState<string>("all"); // 👈 ADD BACK
-  const [filterStage, setFilterStage] = useState<string>("all");
-  const [filterLocation, setFilterLocation] = useState<string>("all");
-  const [filterChannelPartner, setFilterChannelPartner] = useState<string>("all");
+const { filters, setFilters, clearFilters } = useLeadFilters();
+
+const [sortBy, setSortBy] = useState<string>(() => {
+  return sessionStorage.getItem("leadMgmt:sortBy") || "company-asc";
+});
+
+useEffect(() => {
+  sessionStorage.setItem("leadMgmt:sortBy", sortBy);
+}, [sortBy]);
+
+const [filterStatus, setFilterStatus] = useState<string>("all"); // keep if you still use it
+const [filterChannelPartner, setFilterChannelPartner] = useState<string>(() => {
+  return sessionStorage.getItem("leadMgmt:channelPartner") || "all";
+});
+
+useEffect(() => {
+  sessionStorage.setItem("leadMgmt:channelPartner", filterChannelPartner);
+}, [filterChannelPartner]);
+
+
+// Read values from global filters
+const searchTerm = filters.searchTerm;
+const filterSector = filters.filterSector;
+const filterSubSector = filters.filterSubSector;
+const filterAssignedTo = filters.filterAssignedTo;
+const filterStage = filters.filterStage;
+const filterLocation = filters.filterLocation;
+
+// Setters that update global filters
+const setSearchTerm = (v: string) => setFilters((f) => ({ ...f, searchTerm: v }));
+const setFilterSector = (v: string) => setFilters((f) => ({ ...f, filterSector: v }));
+const setFilterSubSector = (v: string) => setFilters((f) => ({ ...f, filterSubSector: v }));
+const setFilterAssignedTo = (v: string) => setFilters((f) => ({ ...f, filterAssignedTo: v }));
+const setFilterStage = (v: string) => setFilters((f) => ({ ...f, filterStage: v }));
+const setFilterLocation = (v: string) => setFilters((f) => ({ ...f, filterLocation: v }));
+
   // ✅ Helper: supports both API styles (subSector or sub_sector)
   const getCompanySubSector = (company: any) =>
     company?.subSector ?? company?.sub_sector ?? "";
 
 
   // ✅ Reset sub-sector whenever sector filter changes
-    useEffect(() => {
+  // BUT: don't wipe restored subSector on first mount
+  // ✅ Reset sub-sector ONLY when sector actually changes (not on first mount/restore)
+  const prevSectorRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // first run (mount / restored filters) → don't reset
+    if (prevSectorRef.current === null) {
+      prevSectorRef.current = filterSector;
+      return;
+    }
+
+    // if sector changed by user → reset subsector
+    if (prevSectorRef.current !== filterSector) {
       setFilterSubSector("all");
-    }, [filterSector]);
+      prevSectorRef.current = filterSector;
+    }
+  }, [filterSector]);
+
+
 
   // 👇 ADD BACK POC state
   // const [showPOCManagement, setShowPOCManagement] = useState<{leadId: number; companyId: number; companyName: string} | null>(null);
@@ -593,7 +637,9 @@ useEffect(() => {
     }
     // Apply location filter (for universe tab)
     if (stage === 'universe' && filterLocation !== "all") {
-      result = result.filter(lead => lead.company.location === filterLocation);
+      result = result.filter(
+        (lead) => (lead.company.location || "").trim() === (filterLocation || "").trim()
+      );
     }
 
     // Apply channel partner filter (for universe tab)
@@ -646,7 +692,7 @@ useEffect(() => {
 
 
     return result;
-  }, [leads, searchTerm, filterSector,filterSubSector, filterAssignedTo, filterStatus, filterStage, sortBy, stage]);
+  }, [leads, searchTerm, filterSector,filterSubSector, filterAssignedTo, filterStatus, filterStage, filterLocation, filterChannelPartner, sortBy, stage]);
 
   
 
@@ -1308,17 +1354,14 @@ useEffect(() => {
               </Select>
             )}
             {/* Clear Filters Button */}
-            {(filterSector !== "all" ||  filterSubSector !== "all" || filterAssignedTo !== "all" || filterStatus !== "all" || filterStage !== "all" || searchTerm) && (
+            {(filterSector !== "all" ||  filterSubSector !== "all" || filterAssignedTo !== "all" || filterStatus !== "all" || filterStage !== "all" || filterLocation !== "all" || searchTerm) && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setFilterSector("all");
-                  setFilterSubSector("all"); // ✅ Reset sub-sector filter
-                  setFilterAssignedTo("all");
+                  clearFilters();
                   setFilterStatus("all");
-                  setFilterStage("all");
-                  setSearchTerm("");
+                  setFilterChannelPartner("all");
                 }}
                 data-testid="button-clear-filters"
               >

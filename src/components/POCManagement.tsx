@@ -17,7 +17,7 @@ interface Contact {
   designation: string;
   email?: string;
   phone?: string;
-  linkedinProfile: string;
+  linkedinProfile?: string;
   isPrimary: boolean;
   isComplete: boolean;
 }
@@ -190,11 +190,11 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
       newErrors.designation = 'Designation is required';
     }
     
-    if (!contact.linkedinProfile.trim()) {
-      newErrors.linkedinProfile = 'LinkedIn profile is required';
-    } else if (!contact.linkedinProfile.includes('linkedin.com')) {
-      newErrors.linkedinProfile = 'Please enter a valid LinkedIn URL';
+    // LinkedIn is OPTIONAL now
+    if (contact.linkedinProfile.trim() && !contact.linkedinProfile.includes("linkedin.com")) {
+      newErrors.linkedinProfile = "Please enter a valid LinkedIn URL";
     }
+
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(prev => ({ ...prev, [index]: newErrors }));
@@ -276,7 +276,7 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
         designation: contact.designation.trim(),
         email: contact.email?.trim() || null,
         phone: contact.phone?.trim() || null,
-        linkedinProfile: contact.linkedinProfile.trim(),
+        linkedinProfile: contact.linkedinProfile.trim() || null,
         isPrimary: index === 0,
       };
 
@@ -362,7 +362,7 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
           designation: contact.designation,
           email: contact.email || null,
           phone: contact.phone || null,
-          linkedinProfile: contact.linkedinProfile,
+          linkedinProfile: contact.linkedinProfile.trim() || null,
           isPrimary: i === 0,
         };
         
@@ -428,9 +428,9 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
     setErrors({});
   };
 
-  const getCompletionStatus = (contact: ContactFormData | Contact) => {
+    const getCompletionStatus = (contact: ContactFormData | Contact) => {
     const allFields = [contact.name, contact.designation, contact.linkedinProfile, contact.email, contact.phone];
-    const requiredFields = [contact.name, contact.designation, contact.linkedinProfile];
+    const requiredFields = [contact.name, contact.designation]; // LinkedIn not required
     const optionalFields = [contact.email, contact.phone];
     
     const filledCount = allFields.filter(field => field && field.trim() !== '').length;
@@ -521,18 +521,25 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
                     <p className="font-medium">{contact.phone}</p>
                   </div>
                 )}
-                <div>
-                  <span className="text-muted-foreground">LinkedIn Profile</span>
-                  <a 
-                    href={contact.linkedinProfile} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline inline-flex items-center gap-1 ml-2"
-                  >
-                    View Profile
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
+                {contact.linkedinProfile ? (
+                  <div>
+                    <span className="text-muted-foreground">LinkedIn Profile</span>
+                    <a
+                      href={contact.linkedinProfile}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1 ml-2"
+                    >
+                      View Profile
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                ) : (
+                  <div>
+                    <span className="text-muted-foreground">LinkedIn Profile</span>
+                    <p className="font-medium">Not provided</p>
+                  </div>
+                )}
               </CardContent>
               {index < contacts.length - 1 && <Separator />}
             </Card>
@@ -559,7 +566,7 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
           {editingContacts.length}/3 Contact{editingContacts.length !== 1 ? 's' : ''}
         </p>
         <p className="text-xs text-muted-foreground mt-1">
-          Manage up to 3 points of contact for this company. Required fields: Name, Designation, LinkedIn
+          Manage up to 3 points of contact for this company. Required fields: Name, Designation
         </p>
       </div>
 
@@ -748,7 +755,7 @@ export default function POCManagement({ companyId, companyName, onClose, onSave,
 
                 <div className="space-y-2">
                   <Label htmlFor={`contact-linkedin-${index}`} className="text-xs">
-                    LinkedIn Profile *
+                    LinkedIn Profile 
                   </Label>
                   <div className="flex gap-2">
                     <Input
