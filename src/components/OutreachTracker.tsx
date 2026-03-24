@@ -70,7 +70,7 @@ interface OutreachTrackerProps {
   onViewPOC?: () => void;
 }
 
-const activityTypeOptions = [
+export const activityTypeOptions = [
   // -------------------------
   // Email D0 must always be FIRST
   // -------------------------
@@ -170,7 +170,8 @@ const activityTypeOptions = [
   }
 ];
 
-const statusOptions = [
+export const statusOptions = [
+
   {
     value: "sent",
     label: "Sent",

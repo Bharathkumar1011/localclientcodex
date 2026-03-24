@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { Eye, EyeOff } from "lucide-react";
 
 export default function ResetPassword() {
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -48,13 +50,24 @@ export default function ResetPassword() {
       <div className="w-full max-w-md p-6 bg-white shadow-lg rounded">
         <h2 className="text-xl font-bold mb-4">Choose a new password</h2>
 
-        <input
-          className="border w-full p-2 rounded mb-4"
-          type="password"
-          placeholder="Enter new password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div className="relative mb-4">
+          <input
+            className="border w-full p-2 rounded pr-10"
+            type={showPassword ? "text" : "password"}
+            placeholder="Enter new password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+          >
+            {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </button>
+        </div>
 
         <button
           className="w-full bg-blue-600 text-white p-2 rounded"

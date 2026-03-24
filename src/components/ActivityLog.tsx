@@ -65,6 +65,7 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
       switch (entityType) {
         case 'company': return <FileText className="h-4 w-4" />;
         case 'lead': return <Target className="h-4 w-4" />;
+        case 'investor': return <Globe className="h-4 w-4" />; // ✅ Added Investor Icon
         case 'contact': return <User className="h-4 w-4" />;
         case 'intervention': 
           if (action.includes('linkedin')) return <Linkedin className="h-4 w-4" />;
@@ -138,7 +139,7 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
-            No activity logs foundNo activity logs found
+            No activity logs found
           </div>
         </CardContent>
       </Card>

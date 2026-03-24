@@ -11,7 +11,8 @@ import {
   FileText,
   Clock,
   Edit,
-  CheckCircle
+  CheckCircle,
+  Users
 } from "lucide-react";
 import { SiLinkedin, SiWhatsapp } from "react-icons/si";
 import type { Intervention, Lead, Company, Contact, User as UserType } from "@/lib/types";
@@ -45,6 +46,7 @@ const activityTypeLabels: Record<string, string> = {
   call_d1_dinesh: "Call D1 (Dinesh)",
 
   // Others
+  channel_partner: "Channel Partner",
   meeting: "Meeting",
   document: "Document",
 };
@@ -118,6 +120,9 @@ const getActivityConfig = () => {
       return { icon: Mail, label: 'Email D7 (KVS)', color: 'bg-red-500' };
     case 'call_d1_dinesh':
       return { icon: Phone, label: 'Call D1 (Dinesh)', color: 'bg-green-500' };
+
+    case 'channel_partner':
+      return { icon: Users, label: 'Channel Partner', color: 'bg-violet-500' };
 
     // 🔹 Generic
     case 'meeting':

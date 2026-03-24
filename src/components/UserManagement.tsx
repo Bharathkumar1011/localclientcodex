@@ -756,7 +756,7 @@ const ownershipTransferMutation = useMutation({
                           <SelectValue placeholder="Select a role" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-gray-50">
                         <SelectItem value="analyst">Analyst</SelectItem>
                         <SelectItem value="partner">Partner</SelectItem>
                         <SelectItem value="intern">Intern</SelectItem>

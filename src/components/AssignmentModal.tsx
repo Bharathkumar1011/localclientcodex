@@ -39,16 +39,24 @@ export default function AssignmentModal({
   onClose, 
   currentUser 
 }: AssignmentModalProps) {
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [selectedAnalystId, setSelectedAnalystId] = useState<string>("");
+  const [selectedPartnerId, setSelectedPartnerId] = useState<string>("");
   const [selectedInternIds, setSelectedInternIds] = useState<string[]>(currentAssignedInterns);
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
+  const [notes, setNotes] = useState<string>("");
   const { toast } = useToast();
 
   const isAnalyst = currentUser.role === 'analyst';
-  const isPartnerOrAdmin = ['partner', 'admin'].includes(currentUser.role);
+  const isAdmin = currentUser.role === 'admin';
+  const isPartner = currentUser.role === 'partner';
+  const isPartnerOrAdmin = isPartner || isAdmin;
+
   
   // Check if this is a reassignment
-  const isReassignment = isPartnerOrAdmin ? !!lead?.assignedTo : (currentAssignedInterns.length > 0);
+  const isReassignment = isPartnerOrAdmin
+  ? !!(lead?.assignedTo || (lead as any)?.assignedPartnerId)
+  : (currentAssignedInterns.length > 0);
+
 
   // Fetch users based on role
   // Analysts fetch their assigned interns from dedicated endpoint
@@ -136,9 +144,15 @@ export default function AssignmentModal({
 
   // Assignment mutation for Partners/Admins (to analysts)
   const assignmentMutation = useMutation({
-    mutationFn: async (data: { leadId: number; assignedTo: string | null; challengeToken?: string }) => {
+    mutationFn: async (data: { 
+      leadId: number; 
+      assignedTo: string | null; 
+      assignedPartnerId?: string | null;
+      challengeToken?: string 
+    }) => {
       return apiRequest('POST', `/leads/${data.leadId}/assign`, { 
         assignedTo: data.assignedTo,
+        assignedPartnerId: data.assignedPartnerId,
         challengeToken: data.challengeToken,
         notes: isReassignment ? 'Reassignment' : 'Initial assignment'
       });
@@ -149,7 +163,10 @@ export default function AssignmentModal({
         description: "The lead has been successfully assigned.",
       });
       await queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-      setSelectedUserId(null);
+      // reset new states instead of selectedUserId
+      setSelectedAnalystId("");
+      setSelectedPartnerId("");
+      setSelectedInternIds([]);
       onClose();
     },
     onError: (error: any) => {
@@ -160,6 +177,16 @@ export default function AssignmentModal({
       });
     }
   });
+  // Reset selections when modal opens
+    useEffect(() => {
+    if (!isOpen) return;
+
+    // reset selections each time modal opens
+    setSelectedAnalystId("");
+    setSelectedPartnerId("");
+    setSelectedInternIds(currentAssignedInterns || []);
+  }, [isOpen, lead?.id]);
+
 
   // Intern assignment mutation for Analysts (to interns)
   const internAssignmentMutation = useMutation({
@@ -184,55 +211,82 @@ export default function AssignmentModal({
     }
   });
 
-  const handleAssign = () => {
-    if (!lead) return;
-    
-    if (isAnalyst) {
-      // Analyst assigning/reassigning interns
-      if (selectedInternIds.length === 0) return;
-      internAssignmentMutation.mutate({
-        leadId: lead.id,
-        internIds: selectedInternIds
-      });
-    } else {
-      // Partner/Admin assigning/reassigning analyst
-      if (!selectedUserId) return;
-      
-      // For reassignment, need challenge token
-      if (isReassignment && !challengeToken) {
-        toast({
-          title: "Error",
-          description: "Security token not ready. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      assignmentMutation.mutate({
-        leadId: lead.id,
-        assignedTo: selectedUserId,
-        challengeToken: isReassignment ? challengeToken! : undefined
-      });
-    }
+const handleAssign = () => {
+  if (!lead) return;
+
+  // Analyst assigning/reassigning interns
+  if (isAnalyst) {
+    if (selectedInternIds.length === 0) return;
+
+    internAssignmentMutation.mutate({
+      leadId: lead.id,
+      internIds: selectedInternIds,
+    });
+    return;
+  }
+
+  // Admin/Partner assigning analyst + (admin only) partner
+  if (isReassignment && !challengeToken) {
+    toast({
+      title: "Error",
+      description: "Security token not ready. Please try again.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  const payload: any = {
+    leadId: lead.id,
+    challengeToken
   };
 
-  const handleUnassign = () => {
-    if (!lead) return;
-    
-    if (isAnalyst) {
-      // Analyst unassigning interns
-      internAssignmentMutation.mutate({
-        leadId: lead.id,
-        internIds: []
-      });
-    } else {
-      // Partner/Admin unassigning analyst
-      assignmentMutation.mutate({
-        leadId: lead.id,
-        assignedTo: null
-      });
-    }
-  };
+  if (notes.trim()) payload.notes = notes.trim();
+
+
+  // Only include keys that user actually selected (IMPORTANT)
+  if (selectedAnalystId) payload.assignedTo = selectedAnalystId;
+  if (isAdmin && selectedPartnerId) payload.assignedPartnerId = selectedPartnerId;
+
+  if (notes.trim()) payload.notes = notes.trim();
+  if (isReassignment) payload.challengeToken = challengeToken;
+
+  // If nothing selected, stop
+  if (!payload.assignedTo && !payload.assignedPartnerId) {
+    toast({
+      title: "Select partner or analyst",
+      description: "Pick at least one dropdown before assigning.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  assignmentMutation.mutate({
+    leadId: lead.id,
+    ...payload,
+  });
+};
+
+const handleUnassign = () => {
+  if (!lead) return;
+
+  if (isAnalyst) {
+    internAssignmentMutation.mutate({
+      leadId: lead.id,
+      internIds: [],
+    });
+    return;
+  }
+
+  // Admin unassigns both; Partner path shouldn't be visible anyway
+  assignmentMutation.mutate({
+    leadId: lead.id,
+    assignedTo: null,
+    assignedPartnerId: isAdmin ? null : undefined,
+    challengeToken: isReassignment ? challengeToken ?? undefined : undefined,
+    notes: notes.trim() || undefined,
+  });
+};
+
 
   const toggleInternSelection = (internId: string) => {
     setSelectedInternIds(prev => 
@@ -242,7 +296,20 @@ export default function AssignmentModal({
     );
   };
 
-  if (!lead || !company) return null;
+ if (!isOpen) return null;
+
+  if (!lead || !company) {
+    return (
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Lead</DialogTitle>
+            <DialogDescription>Loading lead details…</DialogDescription>
+          </DialogHeader>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -343,35 +410,59 @@ export default function AssignmentModal({
           ) : (
             // Single select for Partners/Admins (selecting analysts/users)
             <div className="space-y-2">
-              <label className="text-sm font-medium">Assign to:</label>
-              <Select onValueChange={setSelectedUserId} disabled={isLoadingUsers}>
-                <SelectTrigger data-testid="select-assignee">
-                  <SelectValue placeholder="Select team member..." />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-50">
-                  {users.filter((ele)=>ele.role==='analyst').map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        {user.firstName && user.lastName 
-                          ? `${user.firstName} ${user.lastName}` 
-                          : user.email
-                        }
-                        <Badge variant="secondary" className="ml-2">
-                          {user.role}
-                        </Badge>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isAdmin && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Assign Partner:</label>
+                  <Select value={selectedPartnerId} onValueChange={setSelectedPartnerId} disabled={isLoadingUsers}>
+                    <SelectTrigger data-testid="select-partner">
+                      <SelectValue placeholder="Select partner..." />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-50">
+                      {users.filter(u => u.role === 'partner').map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.firstName} {u.lastName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Assign Analyst:</label>
+                <Select value={selectedAnalystId} onValueChange={setSelectedAnalystId} disabled={isLoadingUsers}>
+                  <SelectTrigger data-testid="select-assignee">
+                    <SelectValue placeholder="Select analyst..." />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-50">
+                    {users.filter(u => u.role === 'analyst').map((u) => (
+                      <SelectItem key={u.id} value={u.id}>
+                        {u.firstName} {u.lastName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Notes (optional):</label>
+            <textarea
+              className="w-full border rounded-md p-2 text-sm"
+              rows={3}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Add assignment notes..."
+            />
+          </div>
+
 
           {/* Action Buttons */}
           <div className="flex justify-between pt-4">
             <div>
-              {(!isAnalyst && lead.assignedTo) || (isAnalyst && currentAssignedInterns.length > 0) ? (
+              {(!isAnalyst && (lead.assignedTo || (lead as any)?.assignedPartnerId)) ||
+                (isAnalyst && currentAssignedInterns.length > 0) ? (
                 <Button
                   variant="outline"
                   onClick={handleUnassign}
@@ -395,7 +486,12 @@ export default function AssignmentModal({
                 onClick={handleAssign}
                 disabled={
                   (isAnalyst && selectedInternIds.length === 0) ||
-                  (!isAnalyst && !selectedUserId) ||
+                  (!isAnalyst &&
+                    (isAdmin
+                      ? (!selectedAnalystId && !selectedPartnerId)  // admin must pick at least one
+                      : !selectedAnalystId                          // partner (if ever shown) only analyst
+                    )
+                  ) ||
                   assignmentMutation.isPending ||
                   internAssignmentMutation.isPending
                 }

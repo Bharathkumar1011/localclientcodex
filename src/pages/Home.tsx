@@ -4,7 +4,6 @@ import Dashboard from "../components/Dashboard";
 import LeadManagement from "../components/LeadManagement";
 import ScheduledTasksPipeline from "../components/ScheduledTasksPipeline";
 import UserManagementPage from "./UserManagementPage";
-import AuditLogPage from "./AuditLogPage";
 
 export default function Home() {
   const { user } = useAuth();
@@ -30,12 +29,14 @@ export default function Home() {
         <Route path="/scheduled-tasks" component={() => <ScheduledTasksPipeline currentUser={user} />} />
         <Route path="/pitching" component={() => <LeadManagement stage="pitching" currentUser={user} />} />
         <Route path="/mandates" component={() => <LeadManagement stage="mandates" currentUser={user} />} />
+        <Route path="/completed-mandate" component={() => <LeadManagement stage="completed_mandate" currentUser={user} />} />
+        <Route path="/hold" component={() => <LeadManagement stage="hold" currentUser={user} />} />
+        <Route path="/dropped" component={() => <LeadManagement stage="dropped" currentUser={user} />} />
         <Route path="/rejected" component={() => <LeadManagement stage="rejected" currentUser={user} />} />
-        <Route path="/deals-won" component={() => <LeadManagement stage="won" currentUser={user} />} />
-        <Route path="/deals-lost" component={() => <LeadManagement stage="lost" currentUser={user} />} />
-        <Route path="/user-management" component={() => <UserManagementPage />} />
-        <Route path="/audit-log" component={() => <AuditLogPage />} />
-        <Route path="/dashboard" component={() => <Dashboard currentUser={user} />} />
+<Route path="/deals-won" component={() => <LeadManagement stage="won" currentUser={user} />} />
+<Route path="/deals-lost" component={() => <LeadManagement stage="lost" currentUser={user} />} />
+<Route path="/user-management" component={() => <UserManagementPage />} />
+<Route path="/dashboard" component={() => <Dashboard currentUser={user} />} />
         <Route path="/" component={() => <Dashboard currentUser={user} />} />
         <Route component={() => <Dashboard currentUser={user} />} />
       </Switch>
