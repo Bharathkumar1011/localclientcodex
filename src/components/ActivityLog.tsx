@@ -7,6 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Calendar, User, FileText, Target, UserCheck, MessageSquare, Phone, Mail, Video, Linkedin } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { apiFetch } from "@/lib/apiFetch";
+
 // import { API_BASE_URL } from "@/lib/queryClient"; // if exported
 interface ActivityLogEntry {
   id: number;
@@ -39,22 +40,32 @@ export function ActivityLog({ leadId, companyId, limit = 50, className }: Activi
 
   const { data: activities, isLoading } = useQuery({
     queryKey,
-    queryFn: () => {
+    queryFn: async () => {  // Changed to async function for clarity
       const params = new URLSearchParams();
       if (leadId) params.set('leadId', leadId.toString());
       if (companyId) params.set('companyId', companyId.toString());
       if (limit) params.set('limit', limit.toString());
 
-      return apiFetch(`${API_BASE_URL}/api/activity-log?${params.toString()}`)
-        .then(res => res.json());
+      const res = await apiFetch(`/api/activity-logs?${params.toString()}`);
+      const json = await res.json();
+
+      // ✅ FIX: Extract the array from the response object
+      if (Array.isArray(json)) {
+        return json;
+      } else if (json && Array.isArray(json.data)) {
+        return json.data;
+      }
+      return [];
     },
   });
+
 
   const getActionIcon = (action: string, entityType: string) => {
     if (action.includes('created') || action.includes('added')) {
       switch (entityType) {
         case 'company': return <FileText className="h-4 w-4" />;
         case 'lead': return <Target className="h-4 w-4" />;
+        case 'investor': return <Globe className="h-4 w-4" />; // ✅ Added Investor Icon
         case 'contact': return <User className="h-4 w-4" />;
         case 'intervention': 
           if (action.includes('linkedin')) return <Linkedin className="h-4 w-4" />;

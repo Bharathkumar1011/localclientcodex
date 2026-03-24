@@ -50,15 +50,36 @@ export function useAuth() {
 
   const { data: user, isLoading, error } = useQuery<UserWithTestRole | null>({
     queryKey: ["/api/auth/user"],
-    queryFn: async () => {
-      if (!session?.access_token) {
+queryFn: async () => {
+      // 1. Get the session (might be stale)
+      let { data: { session: freshSession } } = await supabase.auth.getSession();
+
+      // 2. 🛡️ BULLETPROOF CHECK: Force a refresh if it expires in less than 2 minutes
+      if (freshSession?.expires_at) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        const timeUntilExpiry = freshSession.expires_at - nowInSeconds;
+
+        if (timeUntilExpiry < 120) { // 120 seconds = 2 minutes
+          console.log("Token expiring soon, manually forcing refresh...");
+          const { data, error } = await supabase.auth.refreshSession();
+          
+          if (!error && data.session) {
+            freshSession = data.session;
+          } else {
+            console.error("Manual refresh failed:", error);
+          }
+        }
+      }
+
+      if (!freshSession?.access_token) {
         return null;
       }
 
+      // 3. Proceed with the guaranteed valid token
       const response = await fetch(`${API_BASE_URL}/auth/user`, {
         credentials: "include",
         headers: {
-          Authorization: `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${freshSession.access_token}`,
         },
       });
 
@@ -91,7 +112,7 @@ export function useAuth() {
     authenticated &&
     user &&
     user.organizationId &&
-    (user.role === "admin" || user.role === "partner") &&
+    user.role === "admin"  &&
     !user.hasSelectedTestRole;
 
   return {

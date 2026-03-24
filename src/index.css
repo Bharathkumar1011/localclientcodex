@@ -14,40 +14,60 @@
   --elevate-1: rgba(0, 0, 0, 0.03);
   --elevate-2: rgba(0, 0, 0, 0.08);
 
-  --background: 236 6% 96%;
-  --foreground: 220 26% 14%;
-  --border: 236 6% 88%;
-  --card: 236 6% 94%;
+
+  --background: 210 20% 98%;        /* slightly brighter, cleaner */
+  --foreground: 220 26% 14%;        /* keep – good contrast */
+
+  --border: 220 10% 82%;            /* darker so borders are visible */
+
+  /* Cards now feel like real "surfaces" */
+  --card: 0 0% 100%;
   --card-foreground: 220 26% 14%;
-  --card-border: 236 6% 86%;
-  --sidebar: 236 6% 92%;
+  --card-border: 220 10% 86%;
+
+  /* Sidebar slightly tinted so it separates from cards */
+  --sidebar: 220 16% 96%;
   --sidebar-foreground: 220 26% 14%;
-  --sidebar-border: 236 6% 84%;
+  --sidebar-border: 220 12% 84%;
+
   --sidebar-primary: 221 83% 53%;
   --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 236 6% 88%;
+  --sidebar-accent: 220 16% 92%;
   --sidebar-accent-foreground: 220 26% 14%;
   --sidebar-ring: 221 83% 53%;
-  --popover: 236 6% 90%;
+
+  /* Popovers should look like dropdowns, modals, menus → white card */
+  --popover: 0 0% 100%;
   --popover-foreground: 220 26% 14%;
-  --popover-border: 236 6% 82%;
+  --popover-border: 220 10% 86%;
+
   --primary: 221 83% 53%;
   --primary-foreground: 210 40% 98%;
-  --secondary: 236 6% 86%;
+
+  /* Slightly darker muted for readability */
+  --secondary: 236 6% 92%;
   --secondary-foreground: 220 26% 14%;
-  --muted: 236 4% 88%;
-  --muted-foreground: 220 14% 46%;
-  --accent: 236 4% 86%;
+  --muted: 236 4% 90%;
+  --muted-foreground: 220 14% 42%;
+
+  /* Same accent philosophy */
+  --accent: 236 4% 92%;
   --accent-foreground: 220 26% 14%;
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 210 40% 98%;
-  --input: 220 26% 24%;
+
+  --input: 220 10% 82%;
   --ring: 221 83% 53%;
+
+  /* Charts left untouched */
   --chart-1: 142 76% 36%;
   --chart-2: 221 83% 53%;
   --chart-3: 38 92% 50%;
   --chart-4: 271 91% 65%;
   --chart-5: 0 84% 60%;
+
+
 
   --font-sans: Inter, system-ui, sans-serif;
   --font-serif: Georgia, serif;
@@ -55,67 +75,135 @@
 
   --radius: 0.5rem;
 
-  --shadow-2xs: 0px 2px 0px 0px hsl(236 6% 88% / 0.05);
-  --shadow-xs: 0px 2px 0px 0px hsl(236 6% 88% / 0.08);
-  --shadow-sm: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 1px 2px -1px hsl(236 6% 88% / 0.12);
-  --shadow: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 1px 2px -1px hsl(236 6% 88% / 0.12);
-  --shadow-md: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 2px 4px -1px hsl(236 6% 88% / 0.16);
-  --shadow-lg: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 4px 6px -1px hsl(236 6% 88% / 0.2);
-  --shadow-xl: 0px 2px 0px 0px hsl(236 6% 88% / 0.08),
-    0px 8px 10px -1px hsl(236 6% 88% / 0.24);
-  --shadow-2xl: 0px 2px 0px 0px hsl(236 6% 88% / 0.12);
+  --shadow-2xs: 0 1px 2px hsl(220 10% 20% / 0.05);
+
+  --shadow-xs:
+    0 1px 2px hsl(220 10% 20% / 0.08),
+    0 1px 1px hsl(220 10% 20% / 0.04);
+
+  --shadow-sm:
+    0 2px 4px hsl(220 10% 20% / 0.10),
+    0 1px 2px hsl(220 10% 20% / 0.06);
+
+  --shadow:
+    0 4px 6px hsl(220 10% 20% / 0.12),
+    0 1px 3px hsl(220 10% 20% / 0.08);
+
+  --shadow-md:
+    0 6px 10px hsl(220 10% 20% / 0.14),
+    0 2px 4px hsl(220 10% 20% / 0.10);
+
+  --shadow-lg:
+    0 10px 15px hsl(220 10% 20% / 0.15),
+    0 3px 6px hsl(220 10% 20% / 0.10);
+
+  --shadow-xl:
+    0 12px 20px hsl(220 10% 20% / 0.18),
+    0 4px 8px hsl(220 10% 20% / 0.12);
+
+  --shadow-2xl:
+    0 25px 50px hsl(220 10% 20% / 0.15);
+
 }
 
-/* =========================================================
-   DARK MODE VARIABLES
-   ========================================================= */
-.dark {
-  --button-outline: rgba(255, 255, 255, 0.1);
-  --badge-outline: rgba(255, 255, 255, 0.05);
-  --opaque-button-border-intensity: 9;
+  /* =========================================================
+     DARK MODE VARIABLES (Refined & Compatible)
+     ========================================================= */
+  .dark {
+    /* 1. UTILITIES & OUTLINES */
+    --button-outline: rgba(255, 255, 255, 0.1);
+    --badge-outline: rgba(255, 255, 255, 0.05);
+    --opaque-button-border-intensity: 9;
 
-  --elevate-1: rgba(255, 255, 255, 0.04);
-  --elevate-2: rgba(255, 255, 255, 0.09);
+    /* 2. ELEVATION LAYERS */
+    --elevate-1: rgba(255, 255, 255, 0.04);
+    --elevate-2: rgba(255, 255, 255, 0.09);
 
-  --background: 222 84% 5%;
-  --foreground: 210 40% 98%;
-  --border: 222 74% 8%;
-  --card: 222 84% 6%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 222 74% 10%;
-  --sidebar: 222 84% 4%;
-  --sidebar-foreground: 210 40% 98%;
-  --sidebar-border: 222 74% 12%;
-  --sidebar-primary: 221 83% 53%;
-  --sidebar-primary-foreground: 210 40% 98%;
-  --sidebar-accent: 222 74% 8%;
-  --sidebar-accent-foreground: 210 40% 98%;
-  --sidebar-ring: 221 83% 53%;
-  --popover: 222 84% 8%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 222 74% 12%;
-  --primary: 221 83% 53%;
-  --primary-foreground: 210 40% 98%;
-  --secondary: 222 74% 12%;
-  --secondary-foreground: 210 40% 98%;
-  --muted: 222 54% 10%;
-  --muted-foreground: 215 20% 65%;
-  --accent: 222 54% 8%;
-  --accent-foreground: 210 40% 98%;
-  --destructive: 0 84% 60%;
-  --destructive-foreground: 210 40% 98%;
-  --input: 222 74% 15%;
-  --ring: 221 83% 53%;
-  --chart-1: 142 76% 56%;
-  --chart-2: 221 83% 73%;
-  --chart-3: 38 92% 70%;
-  --chart-4: 271 91% 75%;
-  --chart-5: 0 84% 70%;
-}
+    /* 3. CORE BACKGROUNDS & FOREGROUNDS */
+    --background: 222 84% 5%;
+    --foreground: 210 40% 98%;
+    --border: 222 74% 12%;
+
+    /* 4. CARDS */
+    --card: 222 84% 7%;
+    --card-foreground: 210 40% 98%;
+    --card-border: 222 74% 11%;
+
+    /* 5. SIDEBAR */
+    --sidebar: 222 84% 4%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 222 74% 10%;
+    --sidebar-primary: 221 83% 53%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 222 74% 11%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-ring: 221 83% 53%;
+
+    /* 6. POPOVERS */
+    --popover: 222 84% 6%;
+    --popover-foreground: 210 40% 98%;
+    --popover-border: 222 74% 12%;
+
+    /* 7. PRIMARY & SECONDARY COLORS */
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 222 74% 12%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 222 54% 11%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 222 54% 10%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* 8. INPUTS & RINGS */
+    --input: 222 74% 14%;
+    --ring: 221 83% 53%;
+
+    /* 9. CHARTS */
+    --chart-1: 142 76% 46%;
+    --chart-2: 221 83% 63%;
+    --chart-3: 38 92% 60%;
+    --chart-4: 271 91% 70%;
+    --chart-5: 0 84% 65%;
+
+    /* 10. SHADOWS (Inverted for Dark Mode) */
+    --shadow-2xs: 0 1px 2px hsl(0 0% 0% / 0.5);
+
+    --shadow-xs:
+      0 1px 2px hsl(0 0% 0% / 0.5),
+      0 1px 1px hsl(0 0% 0% / 0.5);
+
+    --shadow-sm:
+      0 2px 4px hsl(0 0% 0% / 0.5),
+      0 1px 2px hsl(0 0% 0% / 0.5);
+
+    --shadow:
+      0 4px 6px hsl(0 0% 0% / 0.5),
+      0 1px 3px hsl(0 0% 0% / 0.5);
+
+    --shadow-md:
+      0 6px 10px hsl(0 0% 0% / 0.5),
+      0 2px 4px hsl(0 0% 0% / 0.5);
+
+    --shadow-lg:
+      0 10px 15px hsl(0 0% 0% / 0.5),
+      0 3px 6px hsl(0 0% 0% / 0.5);
+
+    --shadow-xl:
+      0 12px 20px hsl(0 0% 0% / 0.5),
+      0 4px 8px hsl(0 0% 0% / 0.5);
+
+    --shadow-2xl:
+      0 25px 50px hsl(0 0% 0% / 0.5);
+  }
+
+
+
 
 /* =========================================================
    BASE LAYER OVERRIDES

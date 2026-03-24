@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Calendar, CheckCircle, UserCheck } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useQuery } from "@tanstack/react-query";
@@ -41,13 +41,38 @@ export default function EngagementGateDialog({
 }: EngagementGateDialogProps) {
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({
-    meetingType: 'meeting' as const,
-    scheduledAt: '',
-    notes: '',
-    defaultPocId: '',
-    backupPocId: ''
-  });
+  const [showNoInfoConfirm, setShowNoInfoConfirm] = useState(false);
+
+  // Keep form data even if dialog unmounts while navigating
+const [formData, setFormData] = useState(() => {
+  const saved = sessionStorage.getItem(`engagement-gate-${leadId}`);
+
+  const base = saved
+    ? JSON.parse(saved)
+    : {
+        meetingType: "online" as "online" | "inperson",
+        scheduledAt: "",
+        notes: "",
+        defaultPocId: "",
+        backupPocId: "",
+      };
+
+  // normalize bad/old values like "meeting"
+  if (base.meetingType !== "online" && base.meetingType !== "inperson") {
+    base.meetingType = "online";
+  }
+
+  return base;
+});
+
+  // Save to sessionStorage whenever formData changes
+  useEffect(() => {
+    sessionStorage.setItem(
+      `engagement-gate-${leadId}`,
+      JSON.stringify(formData)
+    );
+  }, [formData, leadId]);
+
 
   // Fetch contacts for POC selection
   const { data: contacts = [], isLoading: isLoadingContacts } = useQuery<Contact[]>({
@@ -55,89 +80,94 @@ export default function EngagementGateDialog({
     enabled: isOpen && !!companyId,
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+const performMoveToPitching = async () => {
+  setIsSaving(true);
 
-    if (!formData.scheduledAt || !formData.notes.trim()) {
-      toast({
-        title: "Missing Information",
-        description: "Please fill in all required fields",
-        variant: "destructive"
-      });
-      return;
-    }
+  try {
+    const hasMeetingInfo = !!formData.scheduledAt && !!formData.notes.trim();
 
-    if (!formData.defaultPocId) {
-      toast({
-        title: "Missing POC Selection",
-        description: "Please select a default POC for pitching",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsSaving(true);
-
-    try {
-      // Create the meeting intervention
-      await apiRequest('POST', `/interventions`, {
+    // Create the meeting intervention ONLY if both datetime + notes exist
+    if (hasMeetingInfo) {
+      await apiRequest("POST", `/interventions`, {
         leadId,
-        type: formData.meetingType,
+        type: "meeting",
         scheduledAt: new Date(formData.scheduledAt).toISOString(),
-        notes: formData.notes
+        notes: formData.notes,
+        meetingMode: formData.meetingType, // "online" | "inperson"
       });
-
-      // Move the lead to pitching stage with POC information
-      await apiRequest('PATCH', `/leads/${leadId}/stage`, {
-        stage: 'pitching',
-        defaultPocId: parseInt(formData.defaultPocId),
-        backupPocId: formData.backupPocId ? parseInt(formData.backupPocId) : null
-      });
-
-      toast({
-        title: "Success",
-        description: "Meeting recorded and lead moved to Pitching stage",
-      });
-
-      // Invalidate queries and wait for refetch to complete
-      // await queryClient.invalidateQueries({ queryKey: ['leads'], refetchType: 'active' });
-      // await queryClient.invalidateQueries({ queryKey: ['interventions', leadId], refetchType: 'active' });
-      await queryClient.invalidateQueries({ queryKey: [`/leads/${leadId}`] });
-      await queryClient.invalidateQueries({ queryKey: [`/interventions/scheduled`] });
-      await queryClient.invalidateQueries({ queryKey: [`/outreach/lead/${leadId}`] });
-      await queryClient.invalidateQueries({ queryKey: [`/contacts/company/${companyId}`] });
-
-
-
-      // Reset form
-      setFormData({
-        meetingType: 'meeting',
-        scheduledAt: '',
-        notes: '',
-        defaultPocId: '',
-        backupPocId: ''
-      });
-
-      onSuccess();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to record meeting and move lead",
-        variant: "destructive"
-      });
-    } finally {
-      setIsSaving(false);
     }
-  };
+
+    // Move lead to pitching ALWAYS (even without meeting)
+    const payload: any = { stage: "pitching" };
+
+    // Send POCs only if selected
+    if (formData.defaultPocId) payload.defaultPocId = parseInt(formData.defaultPocId);
+    if (formData.backupPocId) payload.backupPocId = parseInt(formData.backupPocId);
+
+    await apiRequest("PATCH", `/leads/${leadId}/stage`, payload);
+
+    toast({
+      title: "Success",
+      description: hasMeetingInfo
+        ? "Meeting recorded and lead moved to Pitching stage"
+        : "Lead moved to Pitching stage (no meeting info recorded)",
+    });
+
+    await queryClient.invalidateQueries({ queryKey: [`/leads/${leadId}`] });
+    await queryClient.invalidateQueries({ queryKey: [`/interventions/scheduled`] });
+    await queryClient.invalidateQueries({ queryKey: [`/outreach/lead/${leadId}`] });
+    await queryClient.invalidateQueries({ queryKey: [`/contacts/company/${companyId}`] });
+
+    // Reset form (IMPORTANT: meetingType should not be "meeting")
+    setFormData({
+      meetingType: "online",
+      scheduledAt: "",
+      notes: "",
+      defaultPocId: "",
+      backupPocId: "",
+    });
+
+    sessionStorage.removeItem(`engagement-gate-${leadId}`);
+    onSuccess();
+  } catch (error: any) {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to move lead to Pitching",
+      variant: "destructive",
+    });
+  } finally {
+    setIsSaving(false);
+  }
+};
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  const isCompletelyEmpty =
+    !formData.scheduledAt &&
+    !formData.notes.trim() &&
+    !formData.defaultPocId &&
+    !formData.backupPocId;
+
+  // If user filled nothing at all, show warning confirm (frontend-only)
+  if (isCompletelyEmpty) {
+    setShowNoInfoConfirm(true);
+    return;
+  }
+
+  await performMoveToPitching();
+};
+
 
   const handleCancel = () => {
     setFormData({
-      meetingType: 'meeting',
+      meetingType: 'online',
       scheduledAt: '',
       notes: '',
       defaultPocId: '',
       backupPocId: ''
     });
+    sessionStorage.removeItem(`engagement-gate-${leadId}`);
     onClose();
   };
 
@@ -157,18 +187,51 @@ export default function EngagementGateDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4 h-[550px] pl-2 overflow-y-auto pr-2 ">
+        <form noValidate onSubmit={handleSubmit} className="space-y-4 mt-4 h-[550px] pl-2 overflow-y-auto pr-2 ">
+          {showNoInfoConfirm ? (
+            <div className="space-y-4">
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-4">
+                <p className="font-medium text-amber-900">
+                  You're moving this lead to Pitching without any meeting info.
+                </p>
+                <p className="text-sm text-amber-800 mt-1">
+                  Do you want to proceed?
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowNoInfoConfirm(false)}
+                  disabled={isSaving}
+                >
+                  No
+                </Button>
+
+                <Button
+                  type="button"
+                  onClick={performMoveToPitching}
+                  disabled={isSaving}
+                >
+                  Yes, proceed
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="space-y-2">
             <Label htmlFor="meeting-type">Meeting Type</Label>
-            <Select
-              value={formData.meetingType}
-              onValueChange={(value) => setFormData({ ...formData, meetingType: value as 'meeting' })}
-            >
+              <Select
+                value={formData.meetingType}
+                onValueChange={(value) => setFormData({ ...formData, meetingType: value as "online" | "inperson" })}
+              >
               <SelectTrigger id="meeting-type" data-testid="select-meeting-type">
                 <SelectValue placeholder="Select meeting type" />
               </SelectTrigger>
               <SelectContent className="bg-gray-50">
-                <SelectItem value="meeting">Meeting</SelectItem>
+               <SelectItem value="online">Online</SelectItem>
+               <SelectItem value="inperson">In-person</SelectItem>            
               </SelectContent>
             </Select>
           </div>
@@ -181,7 +244,6 @@ export default function EngagementGateDialog({
               value={formData.scheduledAt}
               onChange={(e) => setFormData({ ...formData, scheduledAt: e.target.value })}
               data-testid="input-meeting-datetime"
-              required
             />
             <p className="text-xs text-muted-foreground">When did or will the meeting take place?</p>
           </div>
@@ -195,7 +257,6 @@ export default function EngagementGateDialog({
               placeholder="Describe the meeting: attendees, key discussion points, outcomes, next steps..."
               rows={5}
               data-testid="textarea-meeting-notes"
-              required
             />
             <p className="text-xs text-muted-foreground">Include POC names, discussion topics, and outcomes</p>
           </div>
@@ -218,7 +279,7 @@ export default function EngagementGateDialog({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="default-poc">
-                    Default POC <span className="text-destructive">*</span>
+                    Default POC (Optional)
                   </Label>
                   <Select
                     value={formData.defaultPocId}
@@ -267,6 +328,8 @@ export default function EngagementGateDialog({
               </>
             )}
           </div>
+            </>
+          )}
 
           <div className="flex justify-end gap-3 pt-4">
             <Button
@@ -280,7 +343,8 @@ export default function EngagementGateDialog({
             </Button>
             <Button
               type="submit"
-              disabled={isSaving || contacts.length === 0}
+              formNoValidate
+              disabled={isSaving}
               data-testid="button-save-engagement"
             >
               <CheckCircle className="h-4 w-4 mr-2" />

@@ -11,7 +11,8 @@ import {
   FileText,
   Clock,
   Edit,
-  CheckCircle
+  CheckCircle,
+  Users
 } from "lucide-react";
 import { SiLinkedin, SiWhatsapp } from "react-icons/si";
 import type { Intervention, Lead, Company, Contact, User as UserType } from "@/lib/types";
@@ -31,7 +32,10 @@ const activityTypeLabels: Record<string, string> = {
   linkedin_messages_dinesh: "LinkedIn Messages (Dinesh)",
 
   // WhatsApp
-  whatsapp: "WhatsApp",
+  // whatsapp: "WhatsApp",
+  whatsapp_kvs: "WhatsApp (KVS)",
+  whatsapp_dinesh: "WhatsApp (Dinesh)",
+
 
   // Emails
   email_d0_analyst: "Email D0 (Analyst)",
@@ -42,6 +46,7 @@ const activityTypeLabels: Record<string, string> = {
   call_d1_dinesh: "Call D1 (Dinesh)",
 
   // Others
+  channel_partner: "Channel Partner",
   meeting: "Meeting",
   document: "Document",
 };
@@ -67,8 +72,12 @@ export default function ScheduledTaskCard({
   const { lead, user, scheduledAt, notes } = intervention;
   const activityType = intervention.activityType || intervention.type;
   const { company, contact } = lead;
+  // const readableActivityLabel =
+  // activityTypeLabels[activityType] || activityType || "Unknown";
   const readableActivityLabel =
-  activityTypeLabels[activityType] || activityType || "Unknown";
+  intervention.type === "meeting" && intervention.meetingMode
+    ? (intervention.meetingMode === "online" ? "Online meeting" : "In-person meeting")
+    : (activityTypeLabels[activityType] || activityType || "Unknown");
 
   // Get activity type icon and label
   console.log("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
@@ -92,8 +101,16 @@ const getActivityConfig = () => {
       return { icon: SiLinkedin, label: 'LinkedIn Messages (Dinesh)', color: 'bg-blue-500' };
 
     // 🔹 Other Platforms
-    case 'whatsapp':
-      return { icon: SiWhatsapp, label: 'WhatsApp', color: 'bg-green-500' };
+    // case 'whatsapp':
+    //   return { icon: SiWhatsapp, label: 'WhatsApp', color: 'bg-green-500' };
+    
+    case 'whatsapp_kvs':
+      return { icon: SiWhatsapp, label: 'WhatsApp (KVS)', color: 'bg-green-500' };
+
+    case 'whatsapp_dinesh':
+      return { icon: SiWhatsapp, label: 'WhatsApp (Dinesh)', color: 'bg-green-500' };
+
+
 
     case 'email_d0_analyst':
       return { icon: Mail, label: 'Email D0 (Analyst)', color: 'bg-red-500' };
@@ -103,6 +120,9 @@ const getActivityConfig = () => {
       return { icon: Mail, label: 'Email D7 (KVS)', color: 'bg-red-500' };
     case 'call_d1_dinesh':
       return { icon: Phone, label: 'Call D1 (Dinesh)', color: 'bg-green-500' };
+
+    case 'channel_partner':
+      return { icon: Users, label: 'Channel Partner', color: 'bg-violet-500' };
 
     // 🔹 Generic
     case 'meeting':

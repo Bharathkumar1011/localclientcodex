@@ -1,10 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { apiFetch } from "@/lib/apiFetch";
+import { useQueryClient } from "@tanstack/react-query";
+import { FileText, X } from "lucide-react";
+import { LinkifyText } from "@/components/LinkifyText";
 
 
 
@@ -17,6 +20,8 @@ export default function LeadDetailsModal({
   lead,
 }) {
   const { toast } = useToast();
+  const queryClient = useQueryClient();   // <-- add this line
+
 
     // -----------------------------
   // UPCOMING TASKS (Scheduled interventions, all leads)
@@ -62,6 +67,132 @@ export default function LeadDetailsModal({
   // Actionables state
   const [actionables, setActionables] = useState<any[]>([]);
   const [newActionable, setNewActionable] = useState("");
+  
+  const tracxnInputRef = useRef<HTMLInputElement | null>(null);
+
+  const openTracxnPicker = () => tracxnInputRef.current?.click();
+
+  const clearTracxnFile = () => {
+    setTracxnFile(null);
+    if (tracxnInputRef.current) tracxnInputRef.current.value = "";
+  };
+
+
+  const [tracxnFile, setTracxnFile] = useState<File | null>(null);
+ const [isParsingTracxn, setIsParsingTracxn] = useState(false);
+
+async function handlePopulateFromTracxn() {
+  if (!tracxnFile) {
+    toast({ variant: "destructive", title: "Please upload a Tracxn PDF first" });
+    return;
+  }
+
+  try {
+    setIsParsingTracxn(true);
+
+    const formData = new FormData();
+    formData.append("file", tracxnFile);
+
+    // ✅ IMPORTANT: use /api so Vite proxy forwards to backend:5000
+    const res = await apiFetch("/api/tracxn/parse-onepager", {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const msg = await res.text();
+      throw new Error(msg || "Failed to parse PDF");
+    }
+
+    const data = await res.json();
+    const x = data?.extracted || {};
+
+    // ✅ Make sure edit mode is ON so user can see filled fields immediately
+    setIsEditingLead(true);
+
+    const derivedSubSector =
+      x.subSector ??
+      (typeof x.sectorPath === "string" && x.sectorPath.includes(">")
+        ? x.sectorPath.split(">").slice(1).join(" > ").trim()
+        : null);
+
+    setEditCompany((prev: any) => ({
+      ...prev,
+      name: x.companyName ?? prev.name,
+      sector: x.sector ?? prev.sector,
+      subSector: derivedSubSector ?? prev.subSector,
+      location: x.location ?? prev.location,
+      website: x.website ?? prev.website,
+      businessDescription: x.businessDescription ?? prev.businessDescription,
+      revenueInrCr: x.revenueInrCr ?? prev.revenueInrCr,
+      ebitdaInrCr: x.ebitdaInrCr ?? prev.ebitdaInrCr,
+      patInrCr: x.patInrCr ?? prev.patInrCr,
+    }));
+
+    toast({ title: "Populated from Tracxn", description: "Review fields and click Save." });
+  } catch (err: any) {
+    toast({
+      variant: "destructive",
+      title: "Populate failed",
+      description: err?.message || "Could not parse the PDF",
+    });
+  } finally {
+    setIsParsingTracxn(false);
+  }
+}
+
+
+    // Edit mode for lead/company fields
+  // const [isEditingLead, setIsEditingLead] = useState(false);
+  const [isEditingLead, setIsEditingLead] = useState(() => {
+  return sessionStorage.getItem(`lead-is-editing-${company.id}`) === "true";
+});
+
+useEffect(() => {
+  sessionStorage.setItem(
+    `lead-is-editing-${company.id}`,
+    isEditingLead.toString()
+  );
+}, [isEditingLead, company.id]);
+
+type EditCompany = {
+  name: string;
+  sector: string;
+  subSector: string; // Added subSector field
+  location: string;
+  website: string;
+  channelPartner: string;
+  businessDescription: string;
+  revenueInrCr: string;
+  ebitdaInrCr: string;
+  patInrCr: string;
+};
+  // Local editable copy of company fields
+const [editCompany, setEditCompany] = useState(() => {
+  const saved = sessionStorage.getItem(`lead-edit-company-${company.id}`);
+  if (saved) return JSON.parse(saved);
+
+  return {
+    name: company.name || "",
+    sector: company.sector || "",
+    subSector: (company as any).subSector || "", // Initialize subSector
+    location: company.location || "",
+    website: (company as any).website || "",
+    channelPartner: (company as any).channelPartner || "",
+    businessDescription: (company as any).businessDescription || "",
+    revenueInrCr: company.revenueInrCr?.toString?.() ?? "",
+    ebitdaInrCr: company.ebitdaInrCr?.toString?.() ?? "",
+    patInrCr: company.patInrCr?.toString?.() ?? "",
+  };
+});
+useEffect(() => {
+  sessionStorage.setItem(
+    `lead-edit-company-${company.id}`,
+    JSON.stringify(editCompany)
+  );
+}, [editCompany, company.id]);
+
+
 
   // -----------------------------
   // LOAD remarks + actionables when modal opens
@@ -180,39 +311,330 @@ export default function LeadDetailsModal({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="w-[90vw] max-w-6xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
+        <DialogHeader className="flex items-center justify-between">
           <DialogTitle>Lead Details</DialogTitle>
+          <div className="flex items-center justify-between gap-3 w-full">
+            {/* Left: Upload */}
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+
+              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                Tracxn one-pager:
+              </span>
+
+              {/* real input (hidden) */}
+              <input
+                ref={tracxnInputRef}
+                type="file"
+                accept="application/pdf"
+                className="hidden"
+                onChange={(e) => setTracxnFile(e.target.files?.[0] || null)}
+              />
+
+              {/* pretty button */}
+              <Button type="button" size="sm" variant="outline" onClick={openTracxnPicker}>
+                Choose PDF
+              </Button>
+
+              {/* file name */}
+              <span className="text-xs text-muted-foreground truncate max-w-[260px]">
+                {tracxnFile ? tracxnFile.name : "No file selected"}
+              </span>
+
+              {/* clear */}
+              {tracxnFile && (
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  onClick={clearTracxnFile}
+                  aria-label="Clear file"
+                  title="Clear file"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+
+            {/* Right: Actions (Populate + Edit/Save/Cancel) */}
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!tracxnFile || isParsingTracxn}
+                onClick={handlePopulateFromTracxn}
+              >
+                {isParsingTracxn ? "Parsing..." : "Populate"}
+              </Button>
+
+              {isEditingLead ? (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setEditCompany({
+                        name: company.name || "",
+                        sector: company.sector || "",
+                        subSector: (company as any).subSector || "",
+                        location: company.location || "",
+                        website: (company as any).website || "",
+                        channelPartner: (company as any).channelPartner || "",
+                        businessDescription: (company as any).businessDescription || "",
+                        revenueInrCr: company.revenueInrCr ?? "",
+                        ebitdaInrCr: company.ebitdaInrCr ?? "",
+                        patInrCr: company.patInrCr ?? "",
+                      });
+                      setIsEditingLead(false);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      try {
+                        await apiRequest("PUT", `/companies/${company.id}`, {
+                          name: editCompany.name,
+                          sector: editCompany.sector,
+                          subSector: editCompany.subSector || null,
+                          location: editCompany.location,
+                          website: editCompany.website || null,
+                          channelPartner: editCompany.channelPartner || null,
+                          businessDescription: editCompany.businessDescription || null,
+                          revenueInrCr: editCompany.revenueInrCr === "" ? null : editCompany.revenueInrCr,
+                          ebitdaInrCr: editCompany.ebitdaInrCr === "" ? null : editCompany.ebitdaInrCr,
+                          patInrCr: editCompany.patInrCr === "" ? null : editCompany.patInrCr,
+                        });
+
+                        company.name = editCompany.name;
+                        company.sector = editCompany.sector;
+                        (company as any).subSector = editCompany.subSector || null;
+                        company.location = editCompany.location;
+                        (company as any).website = editCompany.website || null;
+                        (company as any).channelPartner = editCompany.channelPartner || null;
+                        (company as any).businessDescription = editCompany.businessDescription || null;
+                        company.revenueInrCr = editCompany.revenueInrCr === "" ? null : editCompany.revenueInrCr;
+                        company.ebitdaInrCr = editCompany.ebitdaInrCr === "" ? null : editCompany.ebitdaInrCr;
+                        company.patInrCr = editCompany.patInrCr === "" ? null : editCompany.patInrCr;
+
+                        await queryClient.invalidateQueries({ queryKey: ["leads"] });
+                        await queryClient.invalidateQueries({ queryKey: ["/api/companies"] });
+
+                        sessionStorage.removeItem(`lead-edit-company-${company.id}`);
+                        sessionStorage.removeItem(`lead-is-editing-${company.id}`);
+
+                        toast({ title: "Lead updated" });
+                        setIsEditingLead(false);
+                      } catch (err: any) {
+                        toast({
+                          title: "Update failed",
+                          description: err?.message || "Could not update lead",
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    Save
+                  </Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setIsEditingLead(true)}>
+                  Edit Lead
+                </Button>
+              )}
+            </div>
+          </div>
         </DialogHeader>
+
 
         <div className="space-y-4 text-sm py-4">
 
-          {/* Company Fields */}
+        {/* Company Fields + Financials */}
+        <div className="space-y-3">
+          <h3 className="font-semibold text-lg">Company Information</h3>
+
+          {/* Company Name */}
           <div>
             <h4 className="font-semibold">Company Name</h4>
-            <p>{company.name}</p>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.name}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, name: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.name || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Sector */}
           <div>
             <h4 className="font-semibold">Sector</h4>
-            <p>{company.sector || "Not provided"}</p>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.sector}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, sector: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.sector || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Sub-sector */}
           <div>
-            <h4 className="font-semibold">Headquartered City</h4>
-            <p>{company.location || "Not provided"}</p>
+            <h4 className="font-semibold">Sub-sector</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.subSector}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, subSector: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{(company as any).subSector || "Not provided"}</p>
+            )}
           </div>
 
+
+          {/* Location */}
           <div>
-            <h4 className="font-semibold">Year Established</h4>
-            <p>{company.foundedYear || "Not provided"}</p>
+            <h4 className="font-semibold">Location</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.location}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, location: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{company.location || "Not provided"}</p>
+            )}
           </div>
 
+          {/* Website */}
           <div>
-            <h4 className="font-semibold">Financials</h4>
-            <p>Revenue: {company.revenueInrCr || "N/A"} Cr</p>
-            <p>EBITDA: {company.ebitdaInrCr || "N/A"} Cr</p>
-            <p>PAT: {company.patInrCr || "N/A"} Cr</p>
+            <h4 className="font-semibold">Website</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.website}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, website: e.target.value }))
+                }
+              />
+            ) : (company as any).website ? (
+              <a
+                href={(company as any).website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline"
+              >
+                {(company as any).website}
+              </a>
+            ) : (
+              <p>Not provided</p>
+            )}
           </div>
+
+          {/* Channel Partner */}
+          <div>
+            <h4 className="font-semibold">Channel Partner</h4>
+            {isEditingLead ? (
+              <input
+                className="border rounded px-2 py-1 w-full text-sm"
+                value={editCompany.channelPartner}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({ ...c, channelPartner: e.target.value }))
+                }
+              />
+            ) : (
+              <p>{(company as any).channelPartner || "Not provided"}</p>
+            )}
+          </div>
+
+          {/* Business Description */}
+          <div>
+            <h4 className="font-semibold">Business Description</h4>
+            {isEditingLead ? (
+              <textarea
+                className="border rounded px-2 py-1 w-full text-sm"
+                rows={3}
+                value={editCompany.businessDescription}
+                onChange={(e) =>
+                  setEditCompany((c: EditCompany) => ({
+                    ...c,
+                    businessDescription: e.target.value,
+                  }))
+                }
+              />
+            ) : (
+              <LinkifyText
+                text={(company as any).businessDescription}
+                className="whitespace-pre-wrap"
+              />
+            )}
+          </div>
+
+          {/* Financials */}
+          <div className="pt-2 space-y-1">
+            <h3 className="font-semibold text-lg">Financial Information</h3>
+
+            <div>
+              <h4 className="font-semibold">Revenue (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.revenueInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, revenueInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.revenueInrCr ?? "N/A"}</p>
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold">EBITDA (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.ebitdaInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, ebitdaInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.ebitdaInrCr ?? "N/A"}</p>
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold">PAT (INR Cr)</h4>
+              {isEditingLead ? (
+                <input
+                  className="border rounded px-2 py-1 w-full text-sm"
+                  value={editCompany.patInrCr}
+                  onChange={(e) =>
+                    setEditCompany((c: EditCompany) => ({ ...c, patInrCr: e.target.value }))
+                  }
+                />
+              ) : (
+                <p>{company.patInrCr ?? "N/A"}</p>
+              )}
+            </div>
+          </div>
+        </div>
+
 
           {/* Remarks Section */}
           <div className="space-y-4 border-t pt-4">
@@ -250,7 +672,7 @@ export default function LeadDetailsModal({
                     className="border p-3 rounded-md flex justify-between items-start"
                 >
                     <div>
-                    <p className="text-sm">{a.text}</p>
+                    <LinkifyText text={a.text} className="text-sm whitespace-pre-wrap" />
                     <p className="text-xs text-gray-400">
                         {new Date(a.createdAt).toLocaleString()}
                     </p>
@@ -312,7 +734,7 @@ export default function LeadDetailsModal({
                   className="border p-3 rounded-md flex justify-between items-start"
                 >
                   <div>
-                    <p className="text-sm">{r.remark}</p>
+                    <LinkifyText text={r.remark} className="text-sm whitespace-pre-wrap" />
                     <p className="text-xs text-gray-400">
                       {new Date(r.createdAt).toLocaleString()}
                     </p>
