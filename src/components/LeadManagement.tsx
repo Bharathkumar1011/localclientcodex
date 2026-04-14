@@ -425,6 +425,8 @@ if (prevSectorRef.current !== JSON.stringify(filterSector)) {
 
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvUploadResults, setCsvUploadResults] = useState<any>(null);
+  const [csvPreviewResults, setCsvPreviewResults] = useState<any>(null);
+
   // const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(false);
      // Initialize state from SessionStorage to survive tab switches/re-renders
   const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(() => {
@@ -723,7 +725,40 @@ const handleSaveLeadTemperature = async (leadId: number, leadTemperature: string
 
 
 
+const csvPreviewMutation = useMutation({
+  mutationFn: async (csvData: string) => {
+    const res = await apiRequest("POST", "/companies/csv-upload?preview=true", {
+      csvData,
+      preview: true,
+    });
+    const json = await res.json();
 
+    if (!res.ok) {
+      throw new Error(json?.message || "CSV preview failed");
+    }
+
+    return json;
+  },
+
+  onSuccess: (data: any) => {
+    const results = data?.results || {};
+    setCsvPreviewResults(results);
+    setCsvUploadResults(null);
+
+    toast({
+      title: "Preview Ready",
+      description: `Parsed ${results.totalRows ?? 0} rows.`,
+    });
+  },
+
+  onError: (error: any) => {
+    toast({
+      title: "Preview Failed",
+      description: error.message || "Failed to generate CSV preview",
+      variant: "destructive",
+    });
+  },
+});
 
   // CSV upload mutation
 const csvUploadMutation = useMutation({
@@ -756,6 +791,7 @@ const csvUploadMutation = useMutation({
       queryClient.invalidateQueries({ queryKey: ["/users/analytics"] });
 
       setCsvFile(null);
+      setCsvPreviewResults(null);
     } catch (err: any) {
       console.error("Error after CSV upload:", err);
       toast({
@@ -887,6 +923,16 @@ const handleDownloadActiveLeadsCsv = async () => {
   }
 };
 
+const handleCsvPreview = () => {
+  if (!csvFile) return;
+
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const csvData = event.target?.result as string;
+    csvPreviewMutation.mutate(csvData);
+  };
+  reader.readAsText(csvFile);
+};
 
   // Handle CSV file upload
   const handleCsvUpload = () => {
@@ -2831,23 +2877,105 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
               </p>
             </div>
 
+            {csvPreviewResults && (
+              <div className="p-4 bg-muted rounded-lg space-y-3">
+                <h4 className="font-medium">Preview Results</h4>
+
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="font-medium">Total Rows:</span> {csvPreviewResults.totalRows}
+                  </div>
+                  <div>
+                    <span className="font-medium">Companies to Create:</span> {csvPreviewResults.companiesToCreate || 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Companies to Update:</span> {csvPreviewResults.companiesToUpdate || 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Companies Unchanged:</span> {csvPreviewResults.companiesUnchanged || 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Leads to Create:</span> {csvPreviewResults.leadsToCreate || 0}
+                  </div>
+                  <div>
+                    <span className="font-medium">Leads Already Present:</span> {csvPreviewResults.leadsExisting || 0}
+                  </div>
+                </div>
+
+                {csvPreviewResults.previewRows?.length > 0 && (
+                  <div className="mt-3">
+                    <h5 className="font-medium mb-2">Parsed Rows</h5>
+                    <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-background">
+                      {csvPreviewResults.previewRows.map((item: any, index: number) => (
+                        <div key={index} className="text-sm border-b pb-2 last:border-b-0">
+                          <div><span className="font-medium">Row:</span> {item.row}</div>
+                          <div><span className="font-medium">Company:</span> {item.companyName}</div>
+                          <div><span className="font-medium">Company Action:</span> {item.companyAction}</div>
+                          <div><span className="font-medium">Lead Action:</span> {item.leadAction}</div>
+                          <div>
+                            <span className="font-medium">Financials:</span>{" "}
+                            Rev: {item.parsedFinancials?.revenueInrCr ?? "-"} | EBITDA: {item.parsedFinancials?.ebitdaInrCr ?? "-"} | PAT: {item.parsedFinancials?.patInrCr ?? "-"}
+                          </div>
+                          <div>
+                            <span className="font-medium">Changed Fields:</span>{" "}
+                            {item.changedFields?.length ? item.changedFields.join(", ") : "None"}
+                          </div>
+                          <div>
+                            <span className="font-medium">Contacts Parsed:</span> {item.parsedContacts?.length || 0}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {csvPreviewResults.errors && csvPreviewResults.errors.length > 0 && (
+                  <div className="mt-4">
+                    <h5 className="font-medium text-destructive mb-2">Preview Errors:</h5>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {csvPreviewResults.errors.map((error: any, index: number) => (
+                        <div key={index} className="text-sm text-destructive">
+                          Row {error.row}: {error.error}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {csvUploadResults && (
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <h4 className="font-medium">Upload Results</h4>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Total Rows:</span> {csvUploadResults.totalRows}
-                  </div>
-                  <div>
-                    <span className="font-medium">Companies Created:</span> {csvUploadResults.successfulCompanies}
-                  </div>
-                  <div>
-                    <span className="font-medium">Contacts Created:</span> {csvUploadResults.successfulContacts}
-                  </div>
-                  <div>
-                    <span className="font-medium">Errors:</span> {csvUploadResults.errors?.length || 0}
-                  </div>
-                </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="font-medium">Total Rows:</span> {csvUploadResults.totalRows}
+          </div>
+          <div>
+            <span className="font-medium">Companies Created:</span> {csvUploadResults.successfulCompanies}
+          </div>
+          <div>
+            <span className="font-medium">Companies Updated:</span> {csvUploadResults.updatedCompanies || 0}
+          </div>
+          <div>
+            <span className="font-medium">Existing Unchanged:</span> {csvUploadResults.unchangedExistingCompanies || 0}
+          </div>
+          <div>
+            <span className="font-medium">Leads Created:</span> {csvUploadResults.successfulLeads || 0}
+          </div>
+          <div>
+            <span className="font-medium">Existing Leads:</span> {csvUploadResults.existingLeads || 0}
+          </div>
+          <div>
+            <span className="font-medium">Contacts Created:</span> {csvUploadResults.successfulContacts}
+          </div>
+          <div>
+            <span className="font-medium">Contacts Updated:</span> {csvUploadResults.updatedContacts || 0}
+          </div>
+          <div>
+            <span className="font-medium">Errors:</span> {csvUploadResults.errors?.length || 0}
+          </div>
+        </div>
                 
                 {csvUploadResults.errors && csvUploadResults.errors.length > 0 && (
                   <div className="mt-4">
@@ -2864,25 +2992,36 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
               </div>
             )}
 
-            <div className="flex justify-end gap-2">
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setShowCsvUploadModal(false);
-                  setCsvFile(null);
-                  setCsvUploadResults(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleCsvUpload}
-                disabled={!csvFile || csvUploadMutation.isPending}
-                data-testid="button-upload-csv"
-              >
-                {csvUploadMutation.isPending ? "Uploading..." : "Upload CSV"}
-              </Button>
-            </div>
+<div className="flex justify-end gap-2">
+  <Button 
+    variant="outline" 
+    onClick={() => {
+      setShowCsvUploadModal(false);
+      setCsvFile(null);
+      setCsvUploadResults(null);
+      setCsvPreviewResults(null);
+    }}
+  >
+    Cancel
+  </Button>
+
+  <Button
+    variant="secondary"
+    onClick={handleCsvPreview}
+    disabled={!csvFile || csvPreviewMutation.isPending || csvUploadMutation.isPending}
+    data-testid="button-preview-csv"
+  >
+    {csvPreviewMutation.isPending ? "Previewing..." : "Preview CSV"}
+  </Button>
+
+  <Button
+    onClick={handleCsvUpload}
+    disabled={!csvFile || csvUploadMutation.isPending}
+    data-testid="button-upload-csv"
+  >
+    {csvUploadMutation.isPending ? "Uploading..." : "Upload CSV"}
+  </Button>
+</div>
           </div>
         </DialogContent>
       </Dialog>

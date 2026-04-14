@@ -36,7 +36,8 @@ type ChannelKey =
   | "email"
   | "whatsapp"
   | "call"
-  | "channel_partner";
+  | "channel_partner"
+  | "other";
 
 type StatusRecord = {
   id: number;
@@ -68,6 +69,7 @@ type PocEntry = {
     whatsapp: StatusRecord | null;
     call: StatusRecord | null;
     channel_partner: StatusRecord | null;
+    other: StatusRecord | null;
   };
 };
 
@@ -95,6 +97,7 @@ const CHANNEL_ORDER: ChannelKey[] = [
   "whatsapp",
   "call",
   "channel_partner",
+  "other",
 ];
 
 function formatDateTime(value?: string | null) {
@@ -131,6 +134,8 @@ function formatChannelLabel(channel: ChannelKey) {
       return "Call";
     case "channel_partner":
       return "Channel Partner";
+    case "other":
+      return "Other";
     default:
       return channel;
   }
@@ -148,6 +153,8 @@ function ChannelIcon({ channel }: { channel: ChannelKey }) {
       return <Phone className="h-4 w-4" />;
     case "channel_partner":
       return <Users className="h-4 w-4" />;
+    case "other":
+      return <MessageSquare className="h-4 w-4" />;
     default:
       return <MessageSquare className="h-4 w-4" />;
   }
@@ -165,6 +172,8 @@ function channelPillClasses(channel: ChannelKey) {
       return "border-cyan-200 bg-cyan-50 text-cyan-700";
     case "channel_partner":
       return "border-violet-200 bg-violet-50 text-violet-700";
+    case "other":
+      return "border-stone-200 bg-stone-50 text-stone-700";
     default:
       return "border-slate-300 bg-slate-50 text-slate-700";
   }

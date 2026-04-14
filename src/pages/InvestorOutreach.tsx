@@ -20,6 +20,7 @@ import InvestorPOCManagement from "@/components/InvestorPOCManagement";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorImportDialog from "@/components/InvestorImportDialog"; // ✅ Imported
 import { useLocation } from "wouter";
+import { apiFetch } from "@/lib/apiFetch";
 import InvestorFilterBar, { type InvestorFilters } from "@/components/InvestorFilterBar"; // ✅ Import
 
 export default function InvestorOutreach() {
@@ -31,6 +32,7 @@ export default function InvestorOutreach() {
     sector: "all",
     investorType: "all",
     location: "",
+    mandateStatus: "all",
     linkStatus: "all"
   });
 
@@ -195,6 +197,11 @@ export default function InvestorOutreach() {
       const matchesType = filters.investorType === "all" || (inv.investorType === filters.investorType);
       const l = filters.location.toLowerCase();
       const matchesLocation = !l || (inv.location?.toLowerCase().includes(l) || false);
+
+      const matchesMandateStatus =
+        filters.mandateStatus === "all" ||
+        (inv.mandateStatus || "") === filters.mandateStatus;
+
       // ✅ NEW: Link Status Filter
       let matchesLinkStatus = true;
       if (filters.linkStatus === "linked") {
@@ -203,7 +210,14 @@ export default function InvestorOutreach() {
         matchesLinkStatus = !inv.linkedLeads || inv.linkedLeads.length === 0;
       }
 
-      return matchesSearch && matchesSector && matchesType && matchesLocation && matchesLinkStatus;
+      return (
+        matchesSearch &&
+        matchesSector &&
+        matchesType &&
+        matchesLocation &&
+        matchesMandateStatus &&
+        matchesLinkStatus
+      );
     });
   }, [investors, filters]);
 
@@ -307,6 +321,25 @@ export default function InvestorOutreach() {
   }, [activeLeads, leadSearch]);
 
 
+  // 7. Clear Filters
+    const handleDownloadCsv = async () => {
+    try {
+      const res = await apiFetch("/api/investors/export?stage=outreach");
+      if (!res.ok) throw new Error("Failed to export outreach investors");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `investors_outreach_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("CSV download failed:", error);
+    }
+  };
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-start justify-between gap-3">
@@ -317,6 +350,10 @@ export default function InvestorOutreach() {
 
 
         <div className="flex gap-2">
+          <Button variant="outline" onClick={handleDownloadCsv}>
+            Download CSV
+          </Button>
+
           {/* ✅ Use new Import Dialog */}
           <Button variant="outline" onClick={() => setIsImportOpen(true)}>
             <Upload className="h-4 w-4 mr-2" />

@@ -3,6 +3,10 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   ExternalLink, 
   Phone,
@@ -12,10 +16,12 @@ import {
   ChevronDown,
   MoreHorizontal,
   Link as LinkIcon,
-  Edit, // ✅ Added Edit Icon
-Globe,
+  Edit,
+  Globe,
   Briefcase,
-  PieChart 
+  PieChart,
+  Copy,
+  Calendar
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -49,9 +55,69 @@ export default function InvestorCard({
 }: InvestorCardProps) {
   const [, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
+  const [cardNextActionText, setCardNextActionText] = useState((investor as any).cardNextActionText || "");
+  const [hasCardNextActionChanges, setHasCardNextActionChanges] = useState(false);
+  const [cardNextActionDate, setCardNextActionDate] = useState(
+    (investor as any).cardNextActionDate
+      ? new Date((investor as any).cardNextActionDate).toISOString().slice(0, 10)
+      : ""
+  );
+  const [mandateStatus, setMandateStatus] = useState((investor as any).mandateStatus || "");
+  const cardNextActionDateInputRef = useRef<HTMLInputElement>(null);
   // --- NEW: Auto-expand and scroll logic ---
   const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCardNextActionText((investor as any).cardNextActionText || "");
+    setCardNextActionDate(
+      (investor as any).cardNextActionDate
+        ? new Date((investor as any).cardNextActionDate).toISOString().slice(0, 10)
+        : ""
+    );
+    setHasCardNextActionChanges(false);
+    setMandateStatus((investor as any).mandateStatus || "");
+  }, [investor.id, (investor as any).cardNextActionText, (investor as any).cardNextActionDate, (investor as any).mandateStatus]);
+
+  const saveCardNextActionMutation = useMutation({
+    mutationFn: async ({
+      cardNextActionText,
+      cardNextActionDate,
+    }: {
+      cardNextActionText: string;
+      cardNextActionDate: string;
+    }) => {
+      await apiRequest("PATCH", `/investors/${investor.id}/card-next-action`, {
+        cardNextActionText,
+        cardNextActionDate: cardNextActionDate || null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Investor next action updated" });
+      setHasCardNextActionChanges(false);
+      queryClient.invalidateQueries();
+    },
+    onError: () => {
+      toast({ title: "Failed to save investor next action", variant: "destructive" });
+    },
+  });
+  const saveMandateStatusMutation = useMutation({
+    mutationFn: async (newValue: string) => {
+      await apiRequest("PATCH", `/investors/${investor.id}`, {
+        mandateStatus: newValue || null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Investor status updated" });
+      queryClient.invalidateQueries();
+    },
+    onError: () => {
+      toast({ title: "Failed to update investor status", variant: "destructive" });
+      setMandateStatus((investor as any).mandateStatus || "");
+    },
+  });
 
   useEffect(() => {
     // Check if there is a 'highlight' parameter in the URL
@@ -129,6 +195,24 @@ const handleOpenInvestorManageOutreach = (
     if (!u) return "";
     const s = String(u).trim();
     return s.startsWith("http") ? s : `https://${s}`;
+  };
+
+    const handleCopy = async (
+    e: React.MouseEvent,
+    value: string,
+    successMessage: string
+  ) => {
+    e.stopPropagation();
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({ title: successMessage });
+    } catch {
+      toast({
+        title: "Failed to copy",
+        variant: "destructive",
+      });
+    }
   };
 
   const topContacts = (investor.contacts || [])
@@ -387,11 +471,74 @@ if (stage === "outreach") {
                       <div key={poc.id} className="p-3 rounded-md border bg-white shadow-sm text-sm space-y-1">
                         <div className="font-medium truncate text-indigo-900" title={poc.name}>{poc.name}</div>
                         <div className="text-xs text-muted-foreground truncate">{poc.designation || "-"}</div>
-                        <div className="flex items-center gap-3 pt-2 mt-1 border-t">
-                          {poc.phone && <a href={`tel:${poc.phone}`} className="text-muted-foreground hover:text-primary"><Phone className="h-3 w-3" /></a>}
-                          {poc.email && <a href={`mailto:${poc.email}`} className="text-muted-foreground hover:text-primary"><Mail className="h-3 w-3" /></a>}
-                          {poc.linkedinProfile && <a href={toSafeUrl(poc.linkedinProfile)} target="_blank" rel="noreferrer" className="text-blue-600 hover:text-blue-800"><Linkedin className="h-3 w-3" /></a>}
-                        </div>
+<div className="flex items-center gap-4 pt-2 mt-1 border-t">
+  {poc.phone && (
+    <div className="flex items-center gap-1.5">
+      <a
+        href={`tel:${poc.phone}`}
+        className="text-muted-foreground hover:text-primary"
+        onClick={(e) => e.stopPropagation()}
+        title={`Call ${poc.phone}`}
+      >
+        <Phone className="h-3 w-3" />
+      </a>
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-primary"
+        onClick={(e) => handleCopy(e, String(poc.phone), "Phone number copied")}
+        title="Copy phone number"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </div>
+  )}
+
+  {poc.email && (
+    <div className="flex items-center gap-1.5">
+      <a
+        href={`mailto:${poc.email}`}
+        className="text-muted-foreground hover:text-primary"
+        onClick={(e) => e.stopPropagation()}
+        title={`Email ${poc.email}`}
+      >
+        <Mail className="h-3 w-3" />
+      </a>
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-primary"
+        onClick={(e) => handleCopy(e, String(poc.email), "Email copied")}
+        title="Copy email"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </div>
+  )}
+
+  {poc.linkedinProfile && (
+    <div className="flex items-center gap-1.5">
+      <a
+        href={toSafeUrl(poc.linkedinProfile)}
+        target="_blank"
+        rel="noreferrer"
+        className="text-blue-600 hover:text-blue-800"
+        onClick={(e) => e.stopPropagation()}
+        title="Open LinkedIn"
+      >
+        <Linkedin className="h-3 w-3" />
+      </a>
+      <button
+        type="button"
+        className="text-muted-foreground hover:text-primary"
+        onClick={(e) =>
+          handleCopy(e, toSafeUrl(poc.linkedinProfile), "LinkedIn profile copied")
+        }
+        title="Copy LinkedIn profile"
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </div>
+  )}
+</div>
                       </div>
                     ))}
                   </div>
@@ -431,6 +578,143 @@ if (stage === "outreach") {
                 <LinkIcon className="h-4 w-4 mr-2" />
                 LINK COMPANIES
               </Button>
+
+                            <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Investor Status
+                  </label>
+                  {saveMandateStatusMutation.isPending && (
+                    <span className="text-[11px] text-muted-foreground">Saving...</span>
+                  )}
+                </div>
+
+                <select
+                  value={mandateStatus}
+                  onChange={(e) => {
+                    const newValue = e.target.value;
+                    setMandateStatus(newValue);
+                    saveMandateStatusMutation.mutate(newValue);
+                  }}
+                  className="w-full rounded-md border border-input bg-white px-3 py-2 text-sm dark:bg-zinc-800"
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={saveMandateStatusMutation.isPending}
+                >
+                  <option value="">Select Status</option>
+                  <option value="mandate">Mandate</option>
+                  <option value="not_mandate">Not Mandate</option>
+                </select>
+              </div>
+
+              <div className="border-t pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                    Card Next Action
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <div className="relative">
+                      <button
+                        type="button"
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-md border cursor-pointer hover:bg-muted bg-white dark:bg-zinc-800"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const input = cardNextActionDateInputRef.current;
+                          if (!input) return;
+
+                          if (typeof input.showPicker === "function") {
+                            input.showPicker();
+                          } else {
+                            input.click();
+                          }
+                        }}
+                        title="Select due date"
+                      >
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                      </button>
+
+                      <input
+                        ref={cardNextActionDateInputRef}
+                        type="date"
+                        value={cardNextActionDate}
+                        onChange={(e) => {
+                          const newDate = e.target.value;
+                          setCardNextActionDate(newDate);
+                          setHasCardNextActionChanges(true);
+                          saveCardNextActionMutation.mutate({
+                            cardNextActionText,
+                            cardNextActionDate: newDate,
+                          });
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                      />
+                    </div>
+
+                    {saveCardNextActionMutation.isPending && (
+                      <span className="text-[11px] text-muted-foreground">Saving...</span>
+                    )}
+                  </div>
+                </div>
+
+                <Textarea
+                  value={cardNextActionText}
+                  onChange={(e) => {
+                    setCardNextActionText(e.target.value);
+                    setHasCardNextActionChanges(true);
+                  }}
+                  onBlur={() => {
+                    const originalText = (investor as any).cardNextActionText || "";
+                    const originalDate = (investor as any).cardNextActionDate
+                      ? new Date((investor as any).cardNextActionDate).toISOString().slice(0, 10)
+                      : "";
+
+                    if (
+                      hasCardNextActionChanges &&
+                      (cardNextActionText !== originalText || cardNextActionDate !== originalDate)
+                    ) {
+                      saveCardNextActionMutation.mutate({
+                        cardNextActionText,
+                        cardNextActionDate,
+                      });
+                      setHasCardNextActionChanges(false);
+                    }
+                  }}
+                  placeholder="Add card-level next action..."
+                  className="min-h-[90px] resize-none bg-white dark:bg-zinc-800"
+                  onClick={(e) => e.stopPropagation()}
+                />
+
+                {cardNextActionDate && (
+                  <div className="text-xs text-muted-foreground">
+                    Due: {new Date(cardNextActionDate).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </div>
+                )}
+
+                {cardNextActionDate && (
+                  <button
+                    type="button"
+                    className="text-xs text-red-500 hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCardNextActionDate("");
+                      setHasCardNextActionChanges(true);
+                      saveCardNextActionMutation.mutate({
+                        cardNextActionText,
+                        cardNextActionDate: "",
+                      });
+                    }}
+                  >
+                    Clear date
+                  </button>
+                )}
+              </div>
+
               {/* --- NEW: Linked Companies List --- */}
         {(investor as any).linkedLeads && (investor as any).linkedLeads.length > 0 && (
           <div className="mt-4 pt-3 border-t border-gray-200 dark:border-zinc-800">

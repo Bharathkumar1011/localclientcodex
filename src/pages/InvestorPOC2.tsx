@@ -12,6 +12,33 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const SLOT_INDEX = 1; 
 const PAGE_TITLE = "Investor POC 2";
 
+
+const INVESTOR_STAGE_STORAGE_KEY = "investor-contact-management:selected-stages:v1";
+const DEFAULT_INVESTOR_STAGES = ["outreach", "warm", "active", "dealmaking"] as const;
+
+type InvestorStageFilter = (typeof DEFAULT_INVESTOR_STAGES)[number];
+
+function sanitizeInvestorStages(value: unknown): InvestorStageFilter[] {
+  const raw = Array.isArray(value) ? value : [];
+  const cleaned = raw.filter((stage): stage is InvestorStageFilter =>
+    DEFAULT_INVESTOR_STAGES.includes(stage as InvestorStageFilter)
+  );
+
+  if (cleaned.length === 0) return [...DEFAULT_INVESTOR_STAGES];
+
+  return DEFAULT_INVESTOR_STAGES.filter((stage) => cleaned.includes(stage));
+}
+
+function loadInvestorStagesFromSession(): InvestorStageFilter[] {
+  try {
+    const raw = sessionStorage.getItem(INVESTOR_STAGE_STORAGE_KEY);
+    if (!raw) return [...DEFAULT_INVESTOR_STAGES];
+    return sanitizeInvestorStages(JSON.parse(raw));
+  } catch {
+    return [...DEFAULT_INVESTOR_STAGES];
+  }
+}
+
 type POCRow = {
   investorId: number;
   investorName: string;
@@ -34,19 +61,30 @@ export default function InvestorPOC2() {
   const [contactFilter, setContactFilter] = useState<"phone" | "email" | "linkedinProfile">("phone");
   const [statusFilter, setStatusFilter] = useState<"all" | "blank" | "not_blank">("all");
   const [investorTypeFilter, setInvestorTypeFilter] = useState("all");
+
+  const [selectedStages, setSelectedStages] = useState<InvestorStageFilter[]>(() =>
+    loadInvestorStagesFromSession()
+  );
+
+
   const [drafts, setDrafts] = useState<Record<number, Partial<POCRow>>>({});
 
   
   // 1. Fetch Data
-  const { data, isLoading } = useQuery<POCResponse>({
-    queryKey: ["investor-poc", SLOT_INDEX],
-    queryFn: async () => {
-      const res = await apiRequest("GET", `/investors/poc-coverage/${SLOT_INDEX}`);
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    refetchOnWindowFocus: false,
-  });
+const { data, isLoading, isFetching } = useQuery<POCResponse>({
+  queryKey: ["investor-poc", SLOT_INDEX, selectedStages.join(",")],
+  queryFn: async () => {
+    const stagesParam = selectedStages.join(",");
+    const res = await apiRequest(
+      "GET",
+      `/investors/poc-coverage/${SLOT_INDEX}?stages=${encodeURIComponent(stagesParam)}`
+    );
+    return res.json();
+  },
+  refetchOnWindowFocus: false,
+  placeholderData: (previousData) => previousData,
+});
+
 
   const investorTypeOptions = useMemo(() => {
   return [...new Set(
@@ -72,6 +110,16 @@ export default function InvestorPOC2() {
     }
     setDrafts(next);
   }, [data?.items]);
+
+  // Persist selected stages in session storage
+  useEffect(() => {
+  try {
+    sessionStorage.setItem(
+      INVESTOR_STAGE_STORAGE_KEY,
+      JSON.stringify(selectedStages)
+    );
+  } catch {}
+}, [selectedStages]);
 
   // Helper
   const isBlankValue = (v: any) => {
@@ -183,12 +231,91 @@ export default function InvestorPOC2() {
     }));
   };
 
+  // 6. Stage Filter Toggle
+  const toggleStage = (stage: InvestorStageFilter) => {
+  setSelectedStages((prev) => {
+    const exists = prev.includes(stage);
+
+    if (exists) {
+      if (prev.length === 1) return prev;
+      return prev.filter((s) => s !== stage);
+    }
+
+    return DEFAULT_INVESTOR_STAGES.filter((s) => [...prev, stage].includes(s));
+  });
+};
+
 const clearFilters = () => {
   setSearch("");
   setContactFilter("phone");
   setStatusFilter("all");
   setInvestorTypeFilter("all");
+  setSelectedStages([...DEFAULT_INVESTOR_STAGES]);
 };
+
+type EditablePocField = "name" | "designation" | "email" | "phone" | "linkedinProfile";
+
+const getLivePocValue = (row: POCRow, field: EditablePocField) => {
+  const draftValue = drafts[row.investorId]?.[field];
+  return String(draftValue ?? row[field] ?? "").trim();
+};
+
+const escapeCsvCell = (value: unknown) => {
+  const str = value == null ? "" : String(value);
+  return `"${str.replace(/"/g, '""')}"`;
+};
+
+const handleDownloadCsv = () => {
+  const slotLabel = `POC ${SLOT_INDEX + 1}`;
+
+  const headers = [
+    "Organization",
+    "Investor Type",
+    `${slotLabel} Name`,
+    `${slotLabel} Designation`,
+    `${slotLabel} Email`,
+    `${slotLabel} Mobile Number`,
+    `${slotLabel} LinkedIn`,
+  ];
+
+  const csvRows = [
+    headers.map(escapeCsvCell).join(","),
+    ...filteredRows.map((row) =>
+      [
+        row.investorName,
+        row.investorType || "",
+        getLivePocValue(row, "name"),
+        getLivePocValue(row, "designation"),
+        getLivePocValue(row, "email"),
+        getLivePocValue(row, "phone"),
+        getLivePocValue(row, "linkedinProfile"),
+      ]
+        .map(escapeCsvCell)
+        .join(",")
+    ),
+  ];
+
+  const blob = new Blob(["\uFEFF" + csvRows.join("\n")], {
+    type: "text/csv;charset=utf-8;",
+  });
+
+  const safeField =
+    contactFilter === "linkedinProfile" ? "linkedin" : contactFilter;
+
+  const fileName = `investor_${slotLabel.toLowerCase().replace(/\s+/g, "_")}_${safeField}_${statusFilter}_${new Date()
+    .toISOString()
+    .slice(0, 10)}.csv`;
+
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+};
+
 
   // ✅ NEW: Reusable Component for Header Stats
   const HeaderStat = ({ label, filled, blank }: { label: string; filled: number; blank: number }) => {
@@ -217,7 +344,13 @@ const clearFilters = () => {
     );
   };
 
-  if (isLoading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin" /></div>;
+  if (isLoading && !data) {
+    return (
+      <div className="p-10 flex justify-center">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
 
   if (!data || !data.items) {
     return <div className="p-10 text-center text-red-500">Error loading data</div>;
@@ -242,6 +375,28 @@ const clearFilters = () => {
                 />
              </div>
           </div>
+
+
+
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+             <CardTitle>Data Table</CardTitle>
+
+             <div className="flex w-full md:w-auto items-center gap-2">
+                <div className="w-full md:w-[280px]">
+                  <Input 
+                    placeholder="Search investor..." 
+                    value={search} 
+                    onChange={e => setSearch(e.target.value)} 
+                  />
+                </div>
+
+                <Button variant="outline" onClick={handleDownloadCsv}>
+                  Download CSV
+                </Button>
+             </div>
+          </div>
+
+          
 
           {/* FILTERS */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
@@ -279,6 +434,45 @@ const clearFilters = () => {
 
              <Button variant="outline" className="h-9" onClick={clearFilters}>Clear Filters</Button>
           </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+  <span className="text-sm font-medium text-muted-foreground">Investor Stages:</span>
+
+  {DEFAULT_INVESTOR_STAGES.map((stage) => {
+    const isActive = selectedStages.includes(stage);
+
+    return (
+      <Button
+        key={stage}
+        type="button"
+        variant="outline"
+        size="sm"
+        aria-pressed={isActive}
+        className={`capitalize transition-colors ${
+          isActive
+            ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+            : "bg-background text-foreground border-input hover:bg-muted"
+        }`}
+        onClick={() => toggleStage(stage)}
+      >
+        {stage}
+      </Button>
+    );
+  })}
+
+  <span className="ml-1 text-xs text-muted-foreground">
+    Selected: {selectedStages.map((s) => s[0].toUpperCase() + s.slice(1)).join(", ")}
+  </span>
+
+  {isFetching && (
+    <div className="ml-2 flex items-center gap-1 text-xs text-muted-foreground">
+      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      <span>Updating...</span>
+    </div>
+  )}
+</div>
+
+
         </CardHeader>
 
         <CardContent className="p-0">

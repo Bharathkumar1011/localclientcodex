@@ -373,6 +373,7 @@ export interface Investor {
   website?: string | null;
   description?: string | null;
   investorType?: string | null; // ✅ Added for filtering
+  mandateStatus?: "mandate" | "not_mandate" | null; // ✅ Added for filtering
   stage: "outreach" | "warm" | "active" | "dealmaking";
   createdAt?: string;
   updatedAt?: string;

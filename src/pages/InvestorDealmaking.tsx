@@ -5,6 +5,9 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Investor } from "@/lib/types";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+
+import { Button } from "@/components/ui/button";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorPOCManagement from "@/components/InvestorPOCManagement";
@@ -12,6 +15,7 @@ import InvestorLinkedCompaniesDialog from "@/components/InvestorLinkedCompaniesD
 
 import InvestorFilterBar, { type InvestorFilters } from "@/components/InvestorFilterBar";
 
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function InvestorDealmaking() {
   const { user } = useAuth();
@@ -68,6 +72,7 @@ export default function InvestorDealmaking() {
     sector: "all",
     investorType: "all",
     location: "",
+    mandateStatus: "all",
     linkStatus: "all" // ✅ Add this line
   });
 
@@ -80,6 +85,11 @@ export default function InvestorDealmaking() {
       const matchesType = filters.investorType === "all" || (inv.investorType === filters.investorType);
       const l = filters.location.toLowerCase();
       const matchesLocation = !l || (inv.location?.toLowerCase().includes(l) || false);
+
+      const matchesMandateStatus =
+        filters.mandateStatus === "all" ||
+        (inv.mandateStatus || "") === filters.mandateStatus;
+
       // ✅ NEW: Link Status Filter logic
       let matchesLinkStatus = true;
       if (filters.linkStatus === "linked") {
@@ -88,7 +98,14 @@ export default function InvestorDealmaking() {
         matchesLinkStatus = !inv.linkedLeads || inv.linkedLeads.length === 0;
       }
 
-      return matchesSearch && matchesSector && matchesType && matchesLocation && matchesLinkStatus;
+      return (
+        matchesSearch &&
+        matchesSector &&
+        matchesType &&
+        matchesLocation &&
+        matchesMandateStatus &&
+        matchesLinkStatus
+      );
     });
   }, [investors, filters]);
 
@@ -120,11 +137,38 @@ export default function InvestorDealmaking() {
     });
   };
 
+
+    const handleDownloadCsv = async () => {
+    try {
+      const res = await apiFetch("/api/investors/export?stage=dealmaking");
+      if (!res.ok) throw new Error("Failed to export dealmaking investors");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `investors_dealmaking_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("CSV download failed:", error);
+    }
+  };
+
+
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h1 className="text-3xl font-bold">Dealmaking</h1>
-        <p className="text-muted-foreground">Investors in Dealmaking stage (admin only)</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-bold">Dealmaking</h1>
+          <p className="text-muted-foreground">Investors in Dealmaking stage (admin only)</p>
+        </div>
+
+        <Button variant="outline" onClick={handleDownloadCsv}>
+          Download CSV
+        </Button>
       </div>
 
        <InvestorFilterBar 

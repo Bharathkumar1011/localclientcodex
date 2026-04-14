@@ -133,6 +133,54 @@ export default function InvestorContactManagementOtherFields() {
     }
   }, [investors, searchTerm, filterType]);
 
+
+    const escapeCsvCell = (value: unknown) => {
+    const str = value == null ? "" : String(value);
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
+  const handleDownloadCsv = () => {
+    const headers = [
+      "Organization",
+      "Investor Type",
+      "Website",
+      "Sector",
+      "Location",
+    ];
+
+    const csvRows = [
+      headers.map(escapeCsvCell).join(","),
+      ...filteredInvestors.map((inv) =>
+        [
+          getVal(inv, "name"),
+          getVal(inv, "investorType"),
+          getVal(inv, "website"),
+          getVal(inv, "sector"),
+          getVal(inv, "location"),
+        ]
+          .map(escapeCsvCell)
+          .join(",")
+      ),
+    ];
+
+    const blob = new Blob(["\uFEFF" + csvRows.join("\n")], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const fileName = `investor_other_fields_${filterType}_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  };
+
   // Helper component for Header Stats (Updated with counts)
   const HeaderStat = ({ label, stats }: { label: string; stats: { filled: number, blank: number, pct: number } }) => (
     <div className="flex flex-col">
@@ -208,6 +256,10 @@ export default function InvestorContactManagementOtherFields() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-[200px] h-9"
               />
+
+              <Button variant="outline" className="h-9" onClick={handleDownloadCsv}>
+                Download CSV
+              </Button>
             </div>
           </div>
         </CardHeader>

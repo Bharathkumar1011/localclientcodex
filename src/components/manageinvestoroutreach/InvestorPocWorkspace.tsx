@@ -1,13 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-
-
-import { Button } from "@/components/ui/button";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
-
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
-
 import {
   Select,
   SelectContent,
@@ -15,111 +8,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-
-
 import {
   Linkedin,
   Mail,
   MessageSquare,
   Phone,
   Users,
-  CheckCircle,
-  XCircle,
-  History,
-  Clock3,
   Calendar,
 } from "lucide-react";
-import PitchingManagementForm from "./PitchingManagementForm";
+
+import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 
 import {
-  useLeadPocOutreach,
-  type SavePayload,
+  useInvestorPocOutreach,
+  type InvestorChannelKey,
+  type InvestorSavePayload,
   formatStatusLabel,
-} from "@/components/manageoutreach/useLeadPocOutreach";
+} from "@/components/manageinvestoroutreach/useInvestorPocOutreach";
 
-
-import { useLeadPitching } from "@/components/managepitching/useLeadPitching";
-
-import MandatesInvestorOutreachInline from "@/components/manageinvestoroutreach/MandatesInvestorOutreachInline";
-
-type StageWorkspaceProps = {
+type Props = {
   leadId: number;
-  stage: string;
-  companyName: string;
+  investorId: number;
 };
 
-type ChannelKey =
-  | "linkedin"
-  | "email"
-  | "whatsapp"
-  | "call"
-  | "channel_partner"
-  | "other";
-
-type StatusRecord = {
-  id: number;
-  channel: ChannelKey;
-  status: string | null;
-  initiatedAt: string | null;
-  lastUpdatedAt: string | null;
-  remarks: string | null;
-  nextActionText: string | null;
-  nextActionAt: string | null;
-  taskAssignedTo?: string | null;
-};
-
-type PocContact = {
-  id: number;
-  name: string;
-  designation?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  linkedinProfile?: string | null;
-  linkedIn?: string | null;
-  linkedin?: string | null;
-  isPrimary?: boolean | null;
-};
-
-type PocEntry = {
-  slot: number;
-  contact: PocContact;
-  channels: {
-    linkedin: StatusRecord | null;
-    email: StatusRecord | null;
-    whatsapp: StatusRecord | null;
-    call: StatusRecord | null;
-    channel_partner: StatusRecord | null;
-    other: StatusRecord | null;
-  };
-};
-
-type LeadPocOutreachResponse = {
-  lead: {
-    id: number;
-    stage: string;
-    companyId: number;
-    companyName: string;
-  };
-  pocs: PocEntry[];
-  statusOptions: Record<ChannelKey, string[]>;
-};
-
-type AssignableUser = {
-  id: string;
-  firstName?: string | null;
-  lastName?: string | null;
-  email?: string | null;
-  role?: string | null;
-};
-
-function getAssignableUserLabel(user?: AssignableUser | null) {
-  if (!user) return "Unassigned";
-  const full = `${user.firstName || ""} ${user.lastName || ""}`.trim();
-  return full || user.email || "Unknown User";
-}
-
-
-const CHANNEL_ORDER: ChannelKey[] = [
+const CHANNEL_ORDER: InvestorChannelKey[] = [
   "linkedin",
   "email",
   "whatsapp",
@@ -127,6 +40,19 @@ const CHANNEL_ORDER: ChannelKey[] = [
   "channel_partner",
   "other",
 ];
+
+type AssignableUser = {
+  id: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  email?: string | null;
+};
+
+function getAssignableUserLabel(user?: AssignableUser | null) {
+  if (!user) return "Unassigned";
+  const full = `${user.firstName || ""} ${user.lastName || ""}`.trim();
+  return full || user.email || "Unknown User";
+}
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—";
@@ -139,7 +65,7 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
-function formatChannelLabel(channel: ChannelKey) {
+function formatChannelLabel(channel: InvestorChannelKey) {
   switch (channel) {
     case "linkedin":
       return "LinkedIn";
@@ -157,7 +83,8 @@ function formatChannelLabel(channel: ChannelKey) {
       return channel;
   }
 }
-function ChannelIcon({ channel }: { channel: ChannelKey }) {
+
+function ChannelIcon({ channel }: { channel: InvestorChannelKey }) {
   switch (channel) {
     case "linkedin":
       return <Linkedin className="h-4 w-4" />;
@@ -174,7 +101,7 @@ function ChannelIcon({ channel }: { channel: ChannelKey }) {
   }
 }
 
-function channelPillClasses(channel: ChannelKey) {
+function channelPillClasses(channel: InvestorChannelKey) {
   switch (channel) {
     case "linkedin":
       return "border-blue-200 bg-blue-50 text-blue-700";
@@ -238,16 +165,16 @@ function statusToneClasses(status?: string | null) {
 }
 
 type OutreachChannelCardProps = {
-  channel: ChannelKey;
+  channel: InvestorChannelKey;
   contactId: number;
-  record: StatusRecord | null;
+  record: any;
   statusOptions: string[];
   isSaving: boolean;
   assignableUsers: AssignableUser[];
-  onStatusChange: (payload: SavePayload) => void;
-  onRemarksSave: (payload: SavePayload) => void;
-  onNextActionSave: (payload: SavePayload) => void;
-  onAssigneeSave: (payload: SavePayload) => void;
+  onStatusChange: (payload: InvestorSavePayload) => void;
+  onRemarksSave: (payload: InvestorSavePayload) => void;
+  onNextActionSave: (payload: InvestorSavePayload) => void;
+  onAssigneeSave: (payload: InvestorSavePayload) => void;
 };
 
 function OutreachChannelCard({
@@ -324,7 +251,6 @@ function OutreachChannelCard({
             : "lg:grid-cols-[145px_175px_215px_minmax(0,1.2fr)]"
         }`}
       >
-        {/* CHANNEL */}
         <div className="space-y-2">
           <div
             className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium w-fit ${channelPillClasses(
@@ -345,7 +271,6 @@ function OutreachChannelCard({
           </div>
         </div>
 
-        {/* STATUS */}
         {!isOtherChannel && (
           <div className="space-y-2">
             <Select
@@ -389,7 +314,6 @@ function OutreachChannelCard({
           </div>
         )}
 
-        {/* NEXT ACTION */}
         <div className="space-y-2 min-w-0">
           <div className="relative rounded-lg border bg-white px-2.5 py-1.5">
             <input
@@ -443,7 +367,7 @@ function OutreachChannelCard({
               : "No date selected"}
           </div>
 
-          <div className="space-y-1">
+                    <div className="space-y-1">
             <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
               Assigned To
             </div>
@@ -476,10 +400,8 @@ function OutreachChannelCard({
                 : "Unassigned"}
             </Badge>
           </div>
-
         </div>
 
-        {/* REMARKS */}
         <div className="min-w-0">
           <Textarea
             value={remarksDraft}
@@ -502,37 +424,8 @@ function OutreachChannelCard({
     </div>
   );
 }
-function normalizeLinkedinUrl(value?: string | null) {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed.replace(/^\/+/, "")}`;
-}
 
-function normalizePhoneHref(value?: string | null) {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return `tel:${trimmed}`;
-}
-
-function normalizeEmailHref(value?: string | null) {
-  if (!value) return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return `mailto:${trimmed}`;
-}
-
-function StatusIcon({ check }: { check: boolean }) {
-  return check ? (
-    <CheckCircle className="h-5 w-5 text-green-500 mx-auto" />
-  ) : (
-    <XCircle className="h-5 w-5 text-red-300 mx-auto" />
-  );
-}
-
-function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
+export default function InvestorPocWorkspace({ leadId, investorId }: Props) {
   const {
     data,
     isLoading,
@@ -543,7 +436,7 @@ function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
     selectedPoc,
     savingRowKey,
     saveOutreachUpdate,
-  } = useLeadPocOutreach(leadId);
+  } = useInvestorPocOutreach(leadId, investorId);
 
     const { data: assignableUsers = [] } = useQuery<AssignableUser[]>({
     queryKey: ["assignable-task-users"],
@@ -555,20 +448,10 @@ function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
     refetchOnWindowFocus: false,
   });
 
-  const linkedinValueRaw =
-    selectedPoc?.contact.linkedinProfile ||
-    selectedPoc?.contact.linkedin ||
-    selectedPoc?.contact.linkedIn ||
-    null;
-
-  const linkedinHref = normalizeLinkedinUrl(linkedinValueRaw);
-  const emailHref = normalizeEmailHref(selectedPoc?.contact.email);
-  const phoneHref = normalizePhoneHref(selectedPoc?.contact.phone);
-
   if (isLoading) {
     return (
       <div className="rounded-xl border bg-white p-4 text-sm text-slate-500">
-        Loading outreach workspace...
+        Loading investor outreach workspace...
       </div>
     );
   }
@@ -578,7 +461,7 @@ function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
       <div className="rounded-xl border bg-white p-4 text-sm text-red-600">
         {error instanceof Error
           ? error.message
-          : "Failed to load outreach workspace."}
+          : "Failed to load investor outreach workspace."}
       </div>
     );
   }
@@ -586,20 +469,19 @@ function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
   if (!selectedPoc) {
     return (
       <div className="rounded-xl border bg-white p-4 text-sm text-slate-500">
-        No outreach data found.
+        No investor outreach data found.
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Header + POC tabs */}
       <div className="rounded-xl border bg-white p-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <div className="text-base font-semibold text-slate-900">Manage Outreach</div>
             <div className="text-sm text-slate-500">
-              Compact inline outreach workspace for this lead.
+              Compact inline investor outreach workspace.
             </div>
           </div>
 
@@ -625,261 +507,74 @@ function OutreachInlineWorkspace({ leadId }: { leadId: number }) {
         </div>
       </div>
 
+      <div className="rounded-xl border bg-white px-4 py-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-lg font-semibold text-slate-900">
+                {selectedPoc.contact.name || "—"}
+              </div>
 
+              {selectedPoc.contact.designation ? (
+                <span className="text-sm text-slate-500">
+                  {selectedPoc.contact.designation}
+                </span>
+              ) : null}
 
-      {/* Selected POC summary */}
-{/* Selected POC summary */}
-<div className="rounded-xl border bg-white px-4 py-3">
-  <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="text-lg font-semibold text-slate-900">
-          {selectedPoc.contact.name || "—"}
-        </div>
+              {selectedPoc.contact.isPrimary ? (
+                <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                  Primary POC
+                </Badge>
+              ) : null}
+            </div>
 
-        {selectedPoc.contact.designation ? (
-          <span className="text-sm text-slate-500">
-            {selectedPoc.contact.designation}
-          </span>
-        ) : null}
-
-        {selectedPoc.contact.isPrimary ? (
-          <Badge className="border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
-            Primary POC
-          </Badge>
-        ) : null}
-      </div>
-    </div>
-
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-      <div className="inline-flex items-center gap-2 min-w-0">
-        <Mail className="h-4 w-4 text-amber-600 shrink-0" />
-        {emailHref ? (
-          <a
-            href={emailHref}
-            className="text-slate-700 hover:text-amber-700 hover:underline truncate"
-          >
-            {selectedPoc.contact.email}
-          </a>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
-
-      <div className="inline-flex items-center gap-2 min-w-0">
-        <Phone className="h-4 w-4 text-cyan-600 shrink-0" />
-        {phoneHref ? (
-          <a
-            href={phoneHref}
-            className="text-slate-700 hover:text-cyan-700 hover:underline truncate"
-          >
-            {selectedPoc.contact.phone}
-          </a>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
-
-      <div className="inline-flex items-center gap-2 min-w-0">
-        <Linkedin className="h-4 w-4 text-blue-600 shrink-0" />
-        {linkedinHref ? (
-          <a
-            href={linkedinHref}
-            target="_blank"
-            rel="noreferrer"
-            className="text-slate-700 hover:text-blue-700 hover:underline truncate max-w-[320px]"
-          >
-            {linkedinValueRaw}
-          </a>
-        ) : (
-          <span className="text-slate-400">—</span>
-        )}
-      </div>
-    </div>
-  </div>
-</div>
-
-      {/* Channel cards */}
-      <div className="space-y-4">
-<div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-  <div className="min-w-0 flex flex-col gap-1 xl:flex-row xl:items-center xl:gap-3">
-    <div className="text-base font-semibold text-slate-900">
-      POC{selectedPoc.slot} Outreach
-    </div>
-
-    <div className="text-xs text-slate-500 xl:border-l xl:border-slate-200 xl:pl-3">
-      <span className="font-semibold text-slate-700">Reminder rule:</span>{" "}
-      only <span className="font-semibold">Email → Initiated</span> auto-creates
-      scheduled follow-up tasks.
-    </div>
-  </div>
-
-  <Badge
-    variant="outline"
-    className="border-slate-200 bg-slate-50 text-slate-600"
-  >
-    Live inline
-  </Badge>
-</div>
-
-        <div className="space-y-4">
-          {CHANNEL_ORDER.map((channel) => {
-            const record = selectedPoc.channels[channel];
-            const rowKey = `${selectedPoc.contact.id}:${channel}`;
-
-            return (
-                  <OutreachChannelCard
-                    key={rowKey}
-                    channel={channel}
-                    contactId={selectedPoc.contact.id}
-                    record={record}
-                    statusOptions={data.statusOptions[channel] || []}
-                    isSaving={savingRowKey === rowKey}
-                    assignableUsers={assignableUsers}
-                    onStatusChange={(payload) =>
-                      saveOutreachUpdate({ rowKey, payload })
-                    }
-                    onRemarksSave={(payload) =>
-                      saveOutreachUpdate({ rowKey, payload })
-                    }
-                    onNextActionSave={(payload) =>
-                      saveOutreachUpdate({ rowKey, payload })
-                    }
-                    onAssigneeSave={(payload) =>
-                      saveOutreachUpdate({ rowKey, payload })
-                    }
-                  />
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PitchingInlineWorkspace({
-  leadId,
-  companyName,
-}: {
-  leadId: number;
-  companyName: string;
-}) {
-const [mode, setMode] = useState<"manage" | "history">("manage");
-
-const { details, isLoading } = useLeadPitching(leadId);
-
-  const historyItems = useMemo(() => {
-    const items = [];
-
-    if (details?.meeting1Date || details?.meeting1Notes) {
-      items.push({
-        title: "Meeting 1",
-        date: details?.meeting1Date,
-        notes: details?.meeting1Notes,
-      });
-    }
-
-    if (details?.meeting2Date || details?.meeting2Notes) {
-      items.push({
-        title: "Meeting 2",
-        date: details?.meeting2Date,
-        notes: details?.meeting2Notes,
-      });
-    }
-
-    return items;
-  }, [details]);
-
-  return (
-    <div className="space-y-4">
-      <div className="rounded-xl border bg-white p-4">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="text-base font-semibold text-slate-900">Manage Pitching</div>
-            <div className="text-sm text-slate-500">
-              Work directly on pitching from the lead card.
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+              {selectedPoc.contact.email ? <span>{selectedPoc.contact.email}</span> : null}
+              {selectedPoc.contact.phone ? <span>{selectedPoc.contact.phone}</span> : null}
+              {selectedPoc.contact.linkedinProfile ? (
+                <span>{selectedPoc.contact.linkedinProfile}</span>
+              ) : null}
             </div>
           </div>
 
-          <Button
+          <Badge
             variant="outline"
-            size="sm"
-            onClick={() => setMode((prev) => (prev === "manage" ? "history" : "manage"))}
+            className="border-slate-200 bg-slate-50 text-slate-700"
           >
-            <History className="h-4 w-4 mr-2" />
-            {mode === "manage" ? "Show History" : "Back to Manage"}
-          </Button>
+            Linked Status: {formatStatusLabel(data.investor.currentLinkedStatus || "yet_to_contact")}
+          </Badge>
         </div>
       </div>
 
+      <div className="space-y-3">
+        {CHANNEL_ORDER.map((channel) => {
+          const rowKey = `${selectedPoc.contact.id}:${channel}`;
 
-
-      {mode === "manage" ? (
-        <div className="rounded-xl border bg-white p-4">
-          {isLoading ? (
-            <div className="text-sm text-slate-500">Loading pitching details...</div>
-          ) : (
-            <PitchingManagementForm
-              leadId={leadId}
-              initialData={details}
-              onClose={() => {}}
+          return (
+            <OutreachChannelCard
+              key={rowKey}
+              channel={channel}
+              contactId={selectedPoc.contact.id}
+              record={selectedPoc.channels[channel]}
+              statusOptions={data.statusOptions[channel] || []}
+              isSaving={savingRowKey === rowKey}
+              assignableUsers={assignableUsers}
+              onStatusChange={(payload) =>
+                saveOutreachUpdate({ rowKey, payload })
+              }
+              onRemarksSave={(payload) =>
+                saveOutreachUpdate({ rowKey, payload })
+              }
+              onNextActionSave={(payload) =>
+                saveOutreachUpdate({ rowKey, payload })
+              }
+              onAssigneeSave={(payload) =>
+                saveOutreachUpdate({ rowKey, payload })
+              }
             />
-          )}
-        </div>
-      ) : (
-        <div className="rounded-xl border bg-white p-4">
-          <div className="mb-4 text-base font-semibold text-slate-900">
-            Engagement History & Tasks
-          </div>
-
-          {historyItems.length === 0 ? (
-            <div className="text-sm text-slate-500">No meetings recorded yet.</div>
-          ) : (
-            <div className="space-y-3">
-              {historyItems.map((item, idx) => (
-                <div key={idx} className="rounded-lg border p-3">
-                  <div className="font-medium text-slate-900">{item.title}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {item.date ? formatDateTime(item.date) : "No date"}
-                  </div>
-                  <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">
-                    {item.notes || "No notes"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function LeadCardStageWorkspace({
-  leadId,
-  stage,
-  companyName,
-}: StageWorkspaceProps) {
-  if (stage === "outreach") {
-    return <OutreachInlineWorkspace leadId={leadId} />;
-  }
-
-  if (stage === "pitching") {
-    return <PitchingInlineWorkspace leadId={leadId} companyName={companyName} />;
-  }
-
-  if (stage === "mandates") {
-    return (
-      <MandatesInvestorOutreachInline
-        leadId={leadId}
-        companyName={companyName}
-      />
-    );
-  }
-
-  return (
-    <div className="rounded-xl border bg-white p-4 text-sm text-slate-500">
-      No inline workspace for this stage in phase 1.
+          );
+        })}
+      </div>
     </div>
   );
 }

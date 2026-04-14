@@ -8,7 +8,8 @@ export type ChannelKey =
   | "email"
   | "whatsapp"
   | "call"
-  | "channel_partner";
+  | "channel_partner"
+  | "other";
 
 export type StatusRecord = {
   id: number;
@@ -19,6 +20,7 @@ export type StatusRecord = {
   remarks: string | null;
   nextActionText: string | null;
   nextActionAt: string | null;
+  taskAssignedTo?: string | null;
 };
 
 export type PocContact = {
@@ -42,6 +44,7 @@ export type PocEntry = {
     whatsapp: StatusRecord | null;
     call: StatusRecord | null;
     channel_partner: StatusRecord | null;
+    other: StatusRecord | null;
   };
 };
 
@@ -63,6 +66,7 @@ export type SavePayload = {
   remarks?: string | null;
   nextActionText?: string | null;
   nextActionAt?: string | Date | null;
+  taskAssignedTo?: string | null;
 };
 
 export const CHANNEL_ORDER: ChannelKey[] = [
@@ -71,6 +75,7 @@ export const CHANNEL_ORDER: ChannelKey[] = [
   "whatsapp",
   "call",
   "channel_partner",
+  "other",
 ];
 
 export function formatDateTime(value?: string | null) {
@@ -107,6 +112,8 @@ export function formatChannelLabel(channel: ChannelKey) {
       return "Call";
     case "channel_partner":
       return "Channel Partner";
+    case "other":
+      return "Other";
     default:
       return channel;
   }
@@ -208,6 +215,10 @@ export function useLeadPocOutreach(leadId: number) {
                         ? new Date(payload.nextActionAt).toISOString()
                         : null
                       : poc.channels[payload.channel]?.nextActionAt ?? null,
+                  taskAssignedTo:
+                    payload.taskAssignedTo !== undefined
+                      ? payload.taskAssignedTo
+                      : poc.channels[payload.channel]?.taskAssignedTo ?? null,
                 },
               },
             };
@@ -219,18 +230,15 @@ export function useLeadPocOutreach(leadId: number) {
 
       return { previousData };
     },
-    onSuccess: async (_, { payload }) => {
-      await queryClient.invalidateQueries({
-        queryKey: ["lead-poc-outreach", leadId],
-      });
+onSuccess: async (_, { payload }) => {
+  await queryClient.invalidateQueries({
+    queryKey: ["lead-poc-outreach", leadId],
+  });
 
-      if (payload.channel === "email" && payload.status === "initiated") {
-        toast({
-          title: "Email outreach initiated",
-          description: "Scheduled follow-up tasks were created automatically.",
-        });
-      }
-    },
+  await queryClient.invalidateQueries({
+    queryKey: ["interventions", "scheduled"],
+  });
+},
     onError: (err: any, _vars, context) => {
       if (context?.previousData) {
         queryClient.setQueryData(["lead-poc-outreach", leadId], context.previousData);

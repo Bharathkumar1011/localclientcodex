@@ -1,259 +1,255 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Building2, 
-  User as UserIcon, 
-  Phone,
-  Mail,
-  MessageSquare,
+import {
+  Building2,
+  User as UserIcon,
   Calendar,
-  FileText,
-  Clock,
-  Edit,
-  CheckCircle,
-  Users
+  ArrowRight,
+  MessageSquare,
+  Presentation,
+  Briefcase,
+  ListTodo,
 } from "lucide-react";
-import { SiLinkedin, SiWhatsapp } from "react-icons/si";
-import type { Intervention, Lead, Company, Contact, User as UserType } from "@/lib/types";
+import type { Lead, Company, Contact } from "@/lib/types";
 import { formatDistanceToNow, format, isToday, isPast } from "date-fns";
 
-
-// 🔹 Mapping of backend codes → human-readable labels
-const activityTypeLabels: Record<string, string> = {
-  // LinkedIn Requests
-  linkedin_request_self: "LinkedIn Request (Self)",
-  linkedin_request_kvs: "LinkedIn Request (KVS)",
-  linkedin_request_dinesh: "LinkedIn Request (Dinesh)",
-
-  // LinkedIn Messages
-  linkedin_messages_self: "LinkedIn Messages (Self)",
-  linkedin_messages_kvs: "LinkedIn Messages (KVS)",
-  linkedin_messages_dinesh: "LinkedIn Messages (Dinesh)",
-
-  // WhatsApp
-  // whatsapp: "WhatsApp",
-  whatsapp_kvs: "WhatsApp (KVS)",
-  whatsapp_dinesh: "WhatsApp (Dinesh)",
-
-
-  // Emails
-  email_d0_analyst: "Email D0 (Analyst)",
-  email_d3_analyst: "Email D3 (Analyst)",
-  email_d7_kvs: "Email D7 (KVS)",
-
-  // Calls
-  call_d1_dinesh: "Call D1 (Dinesh)",
-
-  // Others
-  channel_partner: "Channel Partner",
-  meeting: "Meeting",
-  document: "Document",
-};
-
-
-interface ScheduledTaskCardProps {
-  intervention: Intervention & {
-    lead: Lead & {
-      company: Company;
-      contact?: Contact;
-    };
-    user: UserType;
+type ScheduledTaskItem = {
+  id: string;
+  stage: "outreach" | "pitching" | "mandates";
+  source:
+    | "lead_poc_outreach"
+    | "pitching"
+    | "investor_link"
+    | "investor_poc_outreach";
+  taskType: string;
+  title: string;
+  scheduledAt: string;
+  nextActionText?: string | null;
+  notes?: string | null;
+  relatedName?: string | null;
+  ownerName?: string | null;
+  createdByName?: string | null;
+  taskAssignedTo?: string | null;
+  taskAssignedToName?: string | null;
+  taskAssignedBy?: string | null;
+  taskAssignedByName?: string | null;
+  lead: Lead & {
+    company: Company;
+    contact?: Contact;
   };
-  onEdit?: (interventionId: number) => void;
-  onComplete?: (interventionId: number) => void;
+};
+interface ScheduledTaskCardProps {
+  task: ScheduledTaskItem;
+  onOpen?: () => void;
+  onComplete?: () => void;
+  isCompleting?: boolean;
 }
 
-export default function ScheduledTaskCard({ 
-  intervention,
-  onEdit,
-  onComplete
-}: ScheduledTaskCardProps) {
-  const { lead, user, scheduledAt, notes } = intervention;
-  const activityType = intervention.activityType || intervention.type;
-  const { company, contact } = lead;
-  // const readableActivityLabel =
-  // activityTypeLabels[activityType] || activityType || "Unknown";
-  const readableActivityLabel =
-  intervention.type === "meeting" && intervention.meetingMode
-    ? (intervention.meetingMode === "online" ? "Online meeting" : "In-person meeting")
-    : (activityTypeLabels[activityType] || activityType || "Unknown");
+const STAGE_META = {
+  outreach: {
+    label: "Outreach",
+    icon: MessageSquare,
+    badgeClass:
+      "border-blue-200 bg-blue-50 text-blue-700",
+  },
+  pitching: {
+    label: "Pitching",
+    icon: Presentation,
+    badgeClass:
+      "border-violet-200 bg-violet-50 text-violet-700",
+  },
+  mandates: {
+    label: "Mandates",
+    icon: Briefcase,
+    badgeClass:
+      "border-emerald-200 bg-emerald-50 text-emerald-700",
+  },
+} as const;
 
-  // Get activity type icon and label
-  console.log("\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\");
-  console.log("Task activityType:", intervention.activityType || intervention.type);
-const getActivityConfig = () => {
-  switch (activityType) {
-    // 🔹 LinkedIn Requests
-    case 'linkedin_request_self':
-      return { icon: SiLinkedin, label: 'LinkedIn Request (Self)', color: 'bg-blue-500' };
-    case 'linkedin_request_kvs':
-      return { icon: SiLinkedin, label: 'LinkedIn Request (KVS)', color: 'bg-blue-500' };
-    case 'linkedin_request_dinesh':
-      return { icon: SiLinkedin, label: 'LinkedIn Request (Dinesh)', color: 'bg-blue-500' };
-
-    // 🔹 LinkedIn Messages
-    case 'linkedin_messages_self':
-      return { icon: SiLinkedin, label: 'LinkedIn Messages (Self)', color: 'bg-blue-500' };
-    case 'linkedin_messages_kvs':
-      return { icon: SiLinkedin, label: 'LinkedIn Messages (KVS)', color: 'bg-blue-500' };
-    case 'linkedin_messages_dinesh':
-      return { icon: SiLinkedin, label: 'LinkedIn Messages (Dinesh)', color: 'bg-blue-500' };
-
-    // 🔹 Other Platforms
-    // case 'whatsapp':
-    //   return { icon: SiWhatsapp, label: 'WhatsApp', color: 'bg-green-500' };
-    
-    case 'whatsapp_kvs':
-      return { icon: SiWhatsapp, label: 'WhatsApp (KVS)', color: 'bg-green-500' };
-
-    case 'whatsapp_dinesh':
-      return { icon: SiWhatsapp, label: 'WhatsApp (Dinesh)', color: 'bg-green-500' };
+const SOURCE_LABELS = {
+  lead_poc_outreach: "Lead POC",
+  pitching: "Pitching Milestone",
+  investor_link: "Investor",
+  investor_poc_outreach: "Investor POC",
+} as const;
 
 
-
-    case 'email_d0_analyst':
-      return { icon: Mail, label: 'Email D0 (Analyst)', color: 'bg-red-500' };
-    case 'email_d3_analyst':
-      return { icon: Mail, label: 'Email D3 (Analyst)', color: 'bg-red-500' };
-    case 'email_d7_kvs':
-      return { icon: Mail, label: 'Email D7 (KVS)', color: 'bg-red-500' };
-    case 'call_d1_dinesh':
-      return { icon: Phone, label: 'Call D1 (Dinesh)', color: 'bg-green-500' };
-
-    case 'channel_partner':
-      return { icon: Users, label: 'Channel Partner', color: 'bg-violet-500' };
-
-    // 🔹 Generic
-    case 'meeting':
-      return { icon: Calendar, label: 'Meeting', color: 'bg-purple-500' };
-    case 'document':
-      return { icon: FileText, label: 'Document', color: 'bg-orange-500' };
-
-    // 🔹 Fallback
-    default:
-      return { icon: MessageSquare, label: activityType || 'Unknown', color: 'bg-gray-500' };
-  }
+const TASK_TYPE_LABELS: Record<string, string> = {
+  linkedin: "LinkedIn",
+  email: "Email",
+  whatsapp: "WhatsApp",
+  call: "Call",
+  channel_partner: "Channel Partner",
+  other: "Other Action",
+  pdm: "PDM",
+  meeting1: "Meeting 1",
+  meeting2: "Meeting 2",
+  loe: "LOE",
+  mandate: "Mandate",
+  investor: "Investor Level",
 };
 
-
-  const activityConfig = getActivityConfig();
-  const ActivityIcon = activityConfig.icon;
-
-  // Determine status based on scheduled time
-  const getStatus = () => {
-    const scheduledDate = new Date(scheduledAt);
-    
-    if (isPast(scheduledDate) && !isToday(scheduledDate)) {
-      return { label: 'Overdue', variant: 'destructive' as const };
-    }
-    
-    if (isToday(scheduledDate)) {
-      return { label: 'Today', variant: 'warning' as const };
-    }
-    
-    return { label: 'Upcoming', variant: 'default' as const };
-  };
-
-  const status = getStatus();
+function getStatusMeta(scheduledAt: string) {
   const scheduledDate = new Date(scheduledAt);
+
+  if (isPast(scheduledDate) && !isToday(scheduledDate)) {
+    return {
+      label: "Overdue",
+      className: "border-red-200 bg-red-50 text-red-700",
+    };
+  }
+
+  if (isToday(scheduledDate)) {
+    return {
+      label: "Today",
+      className: "border-amber-200 bg-amber-50 text-amber-700",
+    };
+  }
+
+  return {
+    label: "Upcoming",
+    className: "border-slate-200 bg-slate-50 text-slate-700",
+  };
+}
+
+export default function ScheduledTaskCard({
+  task,
+  onOpen,
+  onComplete,
+  isCompleting = false,
+}: ScheduledTaskCardProps) {
+  const stageMeta = STAGE_META[task.stage];
+  const StageIcon = stageMeta.icon;
+  const statusMeta = getStatusMeta(task.scheduledAt);
+
+
+  const taskTypeLabel =
+   TASK_TYPE_LABELS[task.taskType] || task.taskType || "Task";
+
+  const scheduledDate = new Date(task.scheduledAt);
   const relativeTime = formatDistanceToNow(scheduledDate, { addSuffix: true });
-  const formattedDateTime = format(scheduledDate, 'MMM d, yyyy • h:mm a');
+  const formattedDateTime = format(scheduledDate, "MMM d, yyyy • h:mm a");
 
   return (
-    <Card className="hover-elevate" data-testid={`scheduled-task-card-${intervention.id}`}>
+    <Card className="hover-elevate" data-testid={`scheduled-task-card-${task.id}`}>
       <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            {/* Company Name */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2 mb-2">
               <Building2 className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-              <h3 className="font-semibold text-base truncate" data-testid={`company-name-${intervention.id}`}>
-                {company.name}
+              <h3 className="font-semibold text-base truncate">
+                {task.lead.company.name}
               </h3>
             </div>
-            
-            {/* POC Information */}
-            {contact && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <UserIcon className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate" data-testid={`poc-name-${intervention.id}`}>
-                  {contact.name}
-                  {contact.designation && ` • ${contact.designation}`}
-                </span>
-              </div>
-            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge
+                variant="outline"
+                className={stageMeta.badgeClass}
+              >
+                <StageIcon className="h-3.5 w-3.5 mr-1" />
+                {stageMeta.label}
+              </Badge>
+
+              <Badge variant="outline" className="text-xs">
+                {SOURCE_LABELS[task.source]}
+              </Badge>
+
+              <Badge variant="outline" className="text-xs">
+                {taskTypeLabel}
+              </Badge>
+
+              {task.taskAssignedToName ? (
+                <Badge
+                  variant="outline"
+                  className="text-xs border-cyan-200 bg-cyan-50 text-cyan-700"
+                >
+                  Assigned
+                </Badge>
+              ) : null}
+            </div>
           </div>
 
-          {/* Status Badge */}
-          <Badge variant={status.variant} data-testid={`status-${intervention.id}`}>
-            {status.label}
+          <Badge
+            variant="outline"
+            className={statusMeta.className}
+          >
+            {statusMeta.label}
           </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {/* Activity Type */}
-        <div className="flex items-center gap-2">
-          <div className={`p-1.5 rounded ${activityConfig.color} bg-opacity-10`}>
-            <ActivityIcon className={`h-4 w-4 ${activityConfig.color.replace('bg-', 'text-')}`} />
+        <div className="flex items-start gap-2">
+          <ListTodo className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+          <div className="min-w-0">
+            <div className="text-sm font-medium">{task.title}</div>
+            {task.nextActionText ? (
+              <div className="text-sm text-muted-foreground mt-1 line-clamp-2">
+                {task.nextActionText}
+              </div>
+            ) : null}
           </div>
-          <span className="text-sm font-medium" data-testid={`activity-type-${intervention.id}`}>
-            {readableActivityLabel}
-          </span>
         </div>
 
-        {/* Scheduled Time */}
+        {task.relatedName ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <UserIcon className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="truncate">{task.relatedName}</span>
+          </div>
+        ) : null}
+
+        {task.ownerName ||
+        task.createdByName ||
+        task.taskAssignedToName ||
+        task.taskAssignedByName ? (
+          <div className="text-xs text-muted-foreground space-y-1">
+            {task.ownerName ? <div>Owner: {task.ownerName}</div> : null}
+            {task.createdByName ? <div>Created By: {task.createdByName}</div> : null}
+            {task.taskAssignedToName ? (
+              <div>Assigned To: {task.taskAssignedToName}</div>
+            ) : null}
+            {task.taskAssignedByName ? (
+              <div>Assigned By: {task.taskAssignedByName}</div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="flex items-center gap-2 text-sm">
-          <Clock className="h-4 w-4 text-muted-foreground" />
+          <Calendar className="h-4 w-4 text-muted-foreground" />
           <div className="flex flex-col">
-            <span className="font-medium" data-testid={`scheduled-time-${intervention.id}`}>
-              {formattedDateTime}
-            </span>
+            <span className="font-medium">{formattedDateTime}</span>
             <span className="text-xs text-muted-foreground">{relativeTime}</span>
           </div>
         </div>
 
-        {/* Notes */}
-        {notes && (
+        {task.notes ? (
           <div className="text-sm text-muted-foreground bg-muted p-2 rounded">
-            <p className="line-clamp-2" data-testid={`notes-${intervention.id}`}>{notes}</p>
+            <p className="line-clamp-2">{task.notes}</p>
           </div>
-        )}
+        ) : null}
 
-        {/* Assigned User */}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <UserIcon className="h-3.5 w-3.5" />
-          <span data-testid={`assigned-user-${intervention.id}`}>
-            {user.firstName} {user.lastName}
-          </span>
-        </div>
+<div className="pt-2 flex gap-2">
+  <Button
+    variant="outline"
+    size="sm"
+    onClick={onOpen}
+    className="flex-1"
+  >
+    Open Lead
+    <ArrowRight className="h-3.5 w-3.5 ml-1" />
+  </Button>
 
-        {/* Actions */}
-        <div className="flex gap-2 pt-2">
-          {onEdit && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEdit(intervention.id)}
-              data-testid={`button-edit-${intervention.id}`}
-            >
-              <Edit className="h-3.5 w-3.5 mr-1" />
-              Edit
-            </Button>
-          )}
-          {onComplete && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => onComplete(intervention.id)}
-              data-testid={`button-complete-${intervention.id}`}
-            >
-              <CheckCircle className="h-3.5 w-3.5 mr-1" />
-              Complete
-            </Button>
-          )}
-        </div>
+  <Button
+    size="sm"
+    onClick={onComplete}
+    disabled={isCompleting}
+    className="flex-1"
+  >
+    {isCompleting ? "Completing..." : "Complete Task"}
+  </Button>
+</div>
       </CardContent>
     </Card>
   );

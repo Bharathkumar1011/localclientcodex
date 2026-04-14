@@ -360,7 +360,26 @@ useEffect(() => {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState(lead.notes || "");
   const [hasChanges, setHasChanges] = useState(false);
+
+  const [cardNextActionText, setCardNextActionText] = useState((lead as any).cardNextActionText || "");
+  const [hasCardNextActionChanges, setHasCardNextActionChanges] = useState(false);
+  const [cardNextActionDate, setCardNextActionDate] = useState(
+    (lead as any).cardNextActionDate
+      ? new Date((lead as any).cardNextActionDate).toISOString().slice(0, 10)
+      : ""
+  );
+  const cardNextActionDateInputRef = useRef<HTMLInputElement>(null);
   const [solutionLinkInput, setSolutionLinkInput] = useState("");
+
+  useEffect(() => {
+    setCardNextActionText((lead as any).cardNextActionText || "");
+    setCardNextActionDate(
+      (lead as any).cardNextActionDate
+        ? new Date((lead as any).cardNextActionDate).toISOString().slice(0, 10)
+        : ""
+    );
+    setHasCardNextActionChanges(false);
+  }, [lead.id, (lead as any).cardNextActionText, (lead as any).cardNextActionDate]);
 
   const saveNotesMutation = useMutation({
     mutationFn: async (newNotes: string) => {
@@ -373,6 +392,29 @@ useEffect(() => {
     },
     onError: () => {
       toast({ title: "Failed to save", variant: "destructive" });
+    }
+  });
+
+  const saveCardNextActionMutation = useMutation({
+    mutationFn: async ({
+      cardNextActionText,
+      cardNextActionDate,
+    }: {
+      cardNextActionText: string;
+      cardNextActionDate: string;
+    }) => {
+      await apiRequest("PATCH", `/leads/${lead.id}/card-next-action`, {
+        cardNextActionText,
+        cardNextActionDate: cardNextActionDate || null,
+      });
+    },
+    onSuccess: () => {
+      toast({ title: "Lead next action updated" });
+      setHasCardNextActionChanges(false);
+      queryClient.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to save lead next action", variant: "destructive" });
     }
   });
 
@@ -1785,6 +1827,117 @@ const handleCompanyClick = () => {
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* Notes */}
+            {/* Card Next Action */}
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Card Next Action
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-md border cursor-pointer hover:bg-muted bg-white"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const input = cardNextActionDateInputRef.current;
+                        if (!input) return;
+
+                        if (typeof input.showPicker === "function") {
+                          input.showPicker();
+                        } else {
+                          input.click();
+                        }
+                      }}
+                      title="Select due date"
+                    >
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </button>
+
+                    <input
+                      ref={cardNextActionDateInputRef}
+                      type="date"
+                      value={cardNextActionDate}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setCardNextActionDate(newDate);
+                        setHasCardNextActionChanges(true);
+                        saveCardNextActionMutation.mutate({
+                          cardNextActionText,
+                          cardNextActionDate: newDate,
+                        });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                  </div>
+
+                  {saveCardNextActionMutation.isPending && (
+                    <span className="text-[11px] text-muted-foreground">Saving...</span>
+                  )}
+                </div>
+              </div>
+
+              <Textarea
+                value={cardNextActionText}
+                onChange={(e) => {
+                  setCardNextActionText(e.target.value);
+                  setHasCardNextActionChanges(true);
+                }}
+                onBlur={() => {
+                  const originalText = (lead as any).cardNextActionText || "";
+                  const originalDate = (lead as any).cardNextActionDate
+                    ? new Date((lead as any).cardNextActionDate).toISOString().slice(0, 10)
+                    : "";
+
+                  if (
+                    hasCardNextActionChanges &&
+                    (cardNextActionText !== originalText || cardNextActionDate !== originalDate)
+                  ) {
+                    saveCardNextActionMutation.mutate({
+                      cardNextActionText,
+                      cardNextActionDate,
+                    });
+                    setHasCardNextActionChanges(false);
+                  }
+                }}
+                placeholder="Add card-level next action..."
+                className="min-h-[90px] resize-none"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {cardNextActionDate && (
+                <div className="text-xs text-muted-foreground">
+                  Due: {new Date(cardNextActionDate).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
+              )}
+
+              {cardNextActionDate && (
+                <button
+                  type="button"
+                  className="text-xs text-red-500 hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCardNextActionDate("");
+                    setHasCardNextActionChanges(true);
+                    saveCardNextActionMutation.mutate({
+                      cardNextActionText,
+                      cardNextActionDate: "",
+                    });
+                  }}
+                >
+                  Clear date
+                </button>
+              )}
             </div>
 
             {/* Notes */}

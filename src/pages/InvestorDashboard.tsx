@@ -34,6 +34,7 @@ const [filters, setFilters] = useState<InvestorFilters>({
   sector: "all",
   investorType: "all",
   linkStatus: "all",
+  mandateStatus: "all",
   location: ""
 });
 
@@ -72,31 +73,58 @@ const [filters, setFilters] = useState<InvestorFilters>({
   }, [investors]);
 
 // ✅ Updated Filtering Logic
-  const filteredInvestors = useMemo(() => {
-    return investors.filter(inv => {
-      // 1. Search (Name OR Website)
-      const q = filters.search.toLowerCase();
-      const matchesSearch = !q || 
-        (inv.name?.toLowerCase().includes(q) || false) || 
-        (inv.website?.toLowerCase().includes(q) || false);
+// ✅ Updated Filtering Logic
+const filteredInvestors = useMemo(() => {
+  return investors.filter((inv) => {
+    // 1. Search (Name OR Website)
+    const q = filters.search.toLowerCase();
+    const matchesSearch =
+      !q ||
+      (inv.name?.toLowerCase().includes(q) || false) ||
+      (inv.website?.toLowerCase().includes(q) || false);
 
-      // 2. Sector (exact match or partial check if comma separated)
-      const matchesSector = filters.sector === "all" || 
-        (inv.sector?.includes(filters.sector) || false);
+    // 2. Sector
+    const matchesSector =
+      filters.sector === "all" ||
+      (inv.sector?.includes(filters.sector) || false);
 
-      // 3. Type
-      const matchesType = filters.investorType === "all" || 
-        (inv.investorType === filters.investorType);
+    // 3. Type
+    const matchesType =
+      filters.investorType === "all" ||
+      inv.investorType === filters.investorType;
 
-      // 4. Location
-      const l = filters.location.toLowerCase();
-      const matchesLocation = !l || 
-        (inv.location?.toLowerCase().includes(l) || false);
+    // 4. Location
+    const l = filters.location.toLowerCase();
+    const matchesLocation =
+      !l || (inv.location?.toLowerCase().includes(l) || false);
 
-      return matchesSearch && matchesSector && matchesType && matchesLocation;
-    });
-  }, [investors, filters]);
+    // 5. Mandate Status
+    const matchesMandateStatus =
+      filters.mandateStatus === "all" ||
+      (inv.mandateStatus || "") === filters.mandateStatus;
 
+    // 6. Link Status
+    let matchesLinkStatus = true;
+    if (filters.linkStatus === "linked") {
+      matchesLinkStatus =
+        Array.isArray((inv as any).linkedLeads) &&
+        (inv as any).linkedLeads.length > 0;
+    } else if (filters.linkStatus === "unlinked") {
+      matchesLinkStatus =
+        !Array.isArray((inv as any).linkedLeads) ||
+        (inv as any).linkedLeads.length === 0;
+    }
+
+    return (
+      matchesSearch &&
+      matchesSector &&
+      matchesType &&
+      matchesLocation &&
+      matchesMandateStatus &&
+      matchesLinkStatus
+    );
+  });
+}, [investors, filters]);
   const updateInvestorMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: any }) => {
       const res = await apiRequest("PATCH", `/investors/${id}`, updates);
@@ -126,6 +154,25 @@ const [filters, setFilters] = useState<InvestorFilters>({
     });
   };
 
+    const handleDownloadCsv = async () => {
+    try {
+      const res = await apiFetch("/api/investors/export?stage=all");
+      if (!res.ok) throw new Error("Failed to export investors");
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `investors_all_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("CSV download failed:", error);
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-7xl space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -133,8 +180,12 @@ const [filters, setFilters] = useState<InvestorFilters>({
           <h1 className="text-3xl font-bold tracking-tight">Investor Universe</h1>
           <p className="text-muted-foreground">Master database of all investors.</p>
         </div>
-        
 
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleDownloadCsv}>
+            Download CSV
+          </Button>
+        </div>
       </div>
 
        <InvestorFilterBar 

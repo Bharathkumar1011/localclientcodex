@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin, Briefcase, Linkedin, Edit, Globe2, Building2, Save, X, MessageSquare, Calendar, MessageCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -23,12 +25,33 @@ const formatWhatsApp = (num: string) => num.replace(/\D/g, '');
 export default function EpnCard({ partner }: Props) {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   
   // Track if we are in edit mode
   const [isEditing, setIsEditing] = useState(false);
   
   // Local form state for inline editing
   const [form, setForm] = useState<EpnPartnerRow>(partner);
+
+  const [cardNextActionText, setCardNextActionText] = useState((partner as any).cardNextActionText || "");
+  const [hasCardNextActionChanges, setHasCardNextActionChanges] = useState(false);
+  const [cardNextActionDate, setCardNextActionDate] = useState(
+    (partner as any).cardNextActionDate
+      ? new Date((partner as any).cardNextActionDate).toISOString().slice(0, 10)
+      : ""
+  );
+  const cardNextActionDateInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setCardNextActionText((partner as any).cardNextActionText || "");
+    setCardNextActionDate(
+      (partner as any).cardNextActionDate
+        ? new Date((partner as any).cardNextActionDate).toISOString().slice(0, 10)
+        : ""
+    );
+    setHasCardNextActionChanges(false);
+    setForm(partner);
+  }, [partner]);
 
   const isIdfc = partner.bucket === "idfc";
 
@@ -78,6 +101,30 @@ export default function EpnCard({ partner }: Props) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/epn"] });
       setIsEditing(false); // Turn off edit mode on success
+    },
+  });
+
+  const saveCardNextActionMutation = useMutation({
+    mutationFn: async ({
+      cardNextActionText,
+      cardNextActionDate,
+    }: {
+      cardNextActionText: string;
+      cardNextActionDate: string;
+    }) => {
+      const res = await apiRequest("PATCH", `/epn/${partner.id}/card-next-action`, {
+        cardNextActionText,
+        cardNextActionDate: cardNextActionDate || null,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "EPN next action updated" });
+      setHasCardNextActionChanges(false);
+      queryClient.invalidateQueries({ queryKey: ["/epn"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to save EPN next action", variant: "destructive" });
     },
   });
 
@@ -311,6 +358,116 @@ export default function EpnCard({ partner }: Props) {
                 </Button>
               </div>
             </div>
+
+            <div className="border-t border-gray-200 dark:border-zinc-800 pt-4 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                  Card Next Action
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="inline-flex items-center justify-center h-8 w-8 rounded-md border cursor-pointer hover:bg-muted bg-white dark:bg-zinc-800"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const input = cardNextActionDateInputRef.current;
+                        if (!input) return;
+
+                        if (typeof input.showPicker === "function") {
+                          input.showPicker();
+                        } else {
+                          input.click();
+                        }
+                      }}
+                      title="Select due date"
+                    >
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                    </button>
+
+                    <input
+                      ref={cardNextActionDateInputRef}
+                      type="date"
+                      value={cardNextActionDate}
+                      onChange={(e) => {
+                        const newDate = e.target.value;
+                        setCardNextActionDate(newDate);
+                        setHasCardNextActionChanges(true);
+                        saveCardNextActionMutation.mutate({
+                          cardNextActionText,
+                          cardNextActionDate: newDate,
+                        });
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute inset-0 opacity-0 pointer-events-none w-0 h-0"
+                      tabIndex={-1}
+                      aria-hidden="true"
+                    />
+                  </div>
+
+                  {saveCardNextActionMutation.isPending && (
+                    <span className="text-[11px] text-muted-foreground">Saving...</span>
+                  )}
+                </div>
+              </div>
+
+              <Textarea
+                value={cardNextActionText}
+                onChange={(e) => {
+                  setCardNextActionText(e.target.value);
+                  setHasCardNextActionChanges(true);
+                }}
+                onBlur={() => {
+                  const originalText = (partner as any).cardNextActionText || "";
+                  const originalDate = (partner as any).cardNextActionDate
+                    ? new Date((partner as any).cardNextActionDate).toISOString().slice(0, 10)
+                    : "";
+
+                  if (
+                    hasCardNextActionChanges &&
+                    (cardNextActionText !== originalText || cardNextActionDate !== originalDate)
+                  ) {
+                    saveCardNextActionMutation.mutate({
+                      cardNextActionText,
+                      cardNextActionDate,
+                    });
+                    setHasCardNextActionChanges(false);
+                  }
+                }}
+                placeholder="Add card-level next action..."
+                className="min-h-[90px] resize-none bg-white dark:bg-zinc-800"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {cardNextActionDate && (
+                <div className="text-xs text-muted-foreground">
+                  Due: {new Date(cardNextActionDate).toLocaleDateString("en-GB", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </div>
+              )}
+
+              {cardNextActionDate && (
+                <button
+                  type="button"
+                  className="text-xs text-red-500 hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setCardNextActionDate("");
+                    setHasCardNextActionChanges(true);
+                    saveCardNextActionMutation.mutate({
+                      cardNextActionText,
+                      cardNextActionDate: "",
+                    });
+                  }}
+                >
+                  Clear date
+                </button>
+              )}
+            </div>
+
 
             {/* Edit / Save Actions */}
             {/* Edit / Save Actions */}
