@@ -221,14 +221,15 @@ export default function InvestorOutreach() {
     });
   }, [investors, filters]);
 
-  const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery<LeadLite[]>({
-    queryKey: ["/leads/stage/universe"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/leads/stage/universe");
-      return res.json();
-    },
-    refetchOnWindowFocus: false,
-  });
+const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery<LeadLite[]>({
+  queryKey: ["/leads/stage/universe"],
+  queryFn: async () => {
+    const res = await apiRequest("GET", "/leads/stage/universe");
+    return res.json();
+  },
+  enabled: linkOpen,
+  refetchOnWindowFocus: false,
+});
 
   const { data: linkedLeads = [], isLoading: isLinkedLoading } = useQuery<LinkedLeadRow[]>({
     queryKey: ["/investors/linked-leads", linkInvestorId],
@@ -392,25 +393,25 @@ export default function InvestorOutreach() {
           {/* Render List of Expandable Rows using InvestorCard */}
           <div className="space-y-2">
             {rows.map((inv) => (
-                <InvestorCard 
-                    key={inv.id} 
-                    investor={inv}
-                    stage="outreach"
-                    onMoveToStage={handleMoveStage}
-                    onSectorToggle={handleSectorToggle}
-                    onManageLinks={(i) => {
-                        setLinkInvestorId(i.id);
-                        setSelectedLeadIds([]);
-                        setLeadSearch("");
-                        setLinkOpen(true);
-                    }}
-                    onManagePOCs={(i) => {
-                        setCurrentInvestorId(i.id);
-                        setCurrentInvestorName(i.name);
-                        setCurrentInvestorContacts(i.contacts || []);
-                        setPocManageOpen(true);
-                    }}
-                />
+              <InvestorCard
+                key={inv.id}
+                investor={inv}
+                stage="outreach"
+                onMoveToStage={handleMoveStage}
+                onSectorToggle={handleSectorToggle}
+                onManageLinks={(i) => {
+                  setLinkInvestorId(i.id);
+                  setSelectedLeadIds([]);
+                  setLeadSearch("");
+                  setLinkOpen(true);
+                }}
+                onManagePOCs={(i) => {
+                  setCurrentInvestorId(i.id);
+                  setCurrentInvestorName(i.name);
+                  setCurrentInvestorContacts(i.contacts || []);
+                  setPocManageOpen(true);
+                }}
+              />
             ))}
           </div>
         </CardContent>

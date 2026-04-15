@@ -1,4 +1,4 @@
-import { useState , useEffect, useRef} from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ interface InvestorCardProps {
   onMoveToStage?: (investorId: number, targetStage: string) => void;
 }
 
-export default function InvestorCard({ 
+function InvestorCardComponent({
   investor, 
   stage, 
   onSectorToggle,
@@ -97,7 +97,7 @@ export default function InvestorCard({
     onSuccess: () => {
       toast({ title: "Investor next action updated" });
       setHasCardNextActionChanges(false);
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ["investors"] });
     },
     onError: () => {
       toast({ title: "Failed to save investor next action", variant: "destructive" });
@@ -111,7 +111,7 @@ export default function InvestorCard({
     },
     onSuccess: () => {
       toast({ title: "Investor status updated" });
-      queryClient.invalidateQueries();
+      queryClient.invalidateQueries({ queryKey: ["investors"] });
     },
     onError: () => {
       toast({ title: "Failed to update investor status", variant: "destructive" });
@@ -760,3 +760,12 @@ if (stage === "outreach") {
     </div>
   );
 }
+
+function areInvestorCardPropsEqual(
+  prev: InvestorCardProps,
+  next: InvestorCardProps
+) {
+  return prev.investor === next.investor && prev.stage === next.stage;
+}
+
+export default memo(InvestorCardComponent, areInvestorCardPropsEqual);

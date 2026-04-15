@@ -53,14 +53,16 @@ const [filters, setFilters] = useState<InvestorFilters>({
 
 
   // 1. Fetch All Investors
-  const { data: investors = [], isLoading } = useQuery<Investor[]>({
-    queryKey: ["investors", "all"],
-    queryFn: async () => {
-      const res = await apiFetch("/api/investors?stage=all");
-      if (!res.ok) throw new Error("Failed to fetch investors");
-      return res.json();
-    }
-  });
+const { data: investors = [], isLoading } = useQuery<Investor[]>({
+  queryKey: ["investors", "all"],
+  queryFn: async () => {
+    const res = await apiFetch("/api/investors?stage=all");
+    if (!res.ok) throw new Error("Failed to fetch investors");
+    return res.json();
+  },
+  staleTime: 1000 * 60 * 5,
+  refetchOnWindowFocus: false,
+});
 
   // ✅ 1. Calculate Unique Locations
   const uniqueLocations = useMemo(() => {

@@ -93,6 +93,7 @@ queryFn: async () => {
 
       return await response.json();
     },
+    staleTime: 1000 * 60 * 5,
     retry: false,
     enabled: !sessionLoading,
       // 💥 REQUIRED FIXES
