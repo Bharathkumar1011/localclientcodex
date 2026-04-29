@@ -32,10 +32,16 @@ export const SECTOR_OPTIONS = [
 ];
 
 export const TYPE_OPTIONS = [
-  "PE", "Family Office", "Strategic", 
-  "Angel Network", "Debt Fund","Bank","Overseas Investor","Other"
+  "PE",
+  "Family Office",
+  "SFO",
+  "Strategic",
+  "Angel Network",
+  "Debt Fund",
+  "Bank",
+  "Overseas Investor",
+  "Other",
 ];
-
 
 // ✅ FIX: Added 'locations' to the destructuring below
 export default function InvestorFilterBar({ filters, setFilters, locations = [] }: InvestorFilterBarProps) {

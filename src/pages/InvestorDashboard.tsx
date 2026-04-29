@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { apiFetch } from "@/lib/apiFetch";
@@ -37,6 +37,12 @@ const [filters, setFilters] = useState<InvestorFilters>({
   mandateStatus: "all",
   location: ""
 });
+const [page, setPage] = useState(1);
+const limit = 25;
+
+useEffect(() => {
+  setPage(1);
+}, [filters.search]);
 
 
   const [isImportOpen, setIsImportOpen] = useState(false); // ✅ Controls the new dialog
@@ -53,16 +59,51 @@ const [filters, setFilters] = useState<InvestorFilters>({
 
 
   // 1. Fetch All Investors
-const { data: investors = [], isLoading } = useQuery<Investor[]>({
-  queryKey: ["investors", "all"],
+const { data: investorsResponse, isLoading } = useQuery<{
+  data: Investor[];
+  total: number;
+  page: number;
+  limit: number;
+}>({
+  queryKey: ["investors", "all", page, filters.search],
   queryFn: async () => {
-    const res = await apiFetch("/api/investors?stage=all");
+    const params = new URLSearchParams({
+      stage: "all",
+      page: String(page),
+      limit: String(limit),
+      search: filters.search || "",
+    });
+
+    const res = await apiFetch(`/api/investors?${params.toString()}`);
     if (!res.ok) throw new Error("Failed to fetch investors");
     return res.json();
   },
   staleTime: 1000 * 60 * 5,
   refetchOnWindowFocus: false,
 });
+
+const investors = investorsResponse?.data ?? [];
+const total = investorsResponse?.total ?? 0;
+const totalPages = Math.max(1, Math.ceil(total / limit));
+
+
+const [goToPageInput, setGoToPageInput] = useState(String(page));
+
+useEffect(() => {
+  setGoToPageInput(String(page));
+}, [page]);
+
+const handleGoToPage = () => {
+  if (!goToPageInput.trim()) return;
+
+  const targetPage = Number(goToPageInput);
+  if (!Number.isFinite(targetPage)) return;
+
+  const safePage = Math.min(Math.max(1, Math.trunc(targetPage)), totalPages);
+  setPage(safePage);
+  setGoToPageInput(String(safePage));
+};
+
 
   // ✅ 1. Calculate Unique Locations
   const uniqueLocations = useMemo(() => {
@@ -78,34 +119,22 @@ const { data: investors = [], isLoading } = useQuery<Investor[]>({
 // ✅ Updated Filtering Logic
 const filteredInvestors = useMemo(() => {
   return investors.filter((inv) => {
-    // 1. Search (Name OR Website)
-    const q = filters.search.toLowerCase();
-    const matchesSearch =
-      !q ||
-      (inv.name?.toLowerCase().includes(q) || false) ||
-      (inv.website?.toLowerCase().includes(q) || false);
-
-    // 2. Sector
     const matchesSector =
       filters.sector === "all" ||
       (inv.sector?.includes(filters.sector) || false);
 
-    // 3. Type
     const matchesType =
       filters.investorType === "all" ||
       inv.investorType === filters.investorType;
 
-    // 4. Location
     const l = filters.location.toLowerCase();
     const matchesLocation =
       !l || (inv.location?.toLowerCase().includes(l) || false);
 
-    // 5. Mandate Status
     const matchesMandateStatus =
       filters.mandateStatus === "all" ||
       (inv.mandateStatus || "") === filters.mandateStatus;
 
-    // 6. Link Status
     let matchesLinkStatus = true;
     if (filters.linkStatus === "linked") {
       matchesLinkStatus =
@@ -118,7 +147,6 @@ const filteredInvestors = useMemo(() => {
     }
 
     return (
-      matchesSearch &&
       matchesSector &&
       matchesType &&
       matchesLocation &&
@@ -127,6 +155,20 @@ const filteredInvestors = useMemo(() => {
     );
   });
 }, [investors, filters]);
+  const deleteInvestorMutation = useMutation({
+    mutationFn: async (investorId: number) => {
+      await apiRequest("PATCH", `/investors/${investorId}/soft-delete`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investors"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-metrics"] });
+      toast({ title: "Investor deleted successfully" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete investor", variant: "destructive" });
+    },
+  });
+
   const updateInvestorMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: any }) => {
       const res = await apiRequest("PATCH", `/investors/${id}`, updates);
@@ -190,6 +232,52 @@ const filteredInvestors = useMemo(() => {
         </div>
       </div>
 
+      <div className="flex items-center justify-between pt-2">
+        <div className="text-sm text-muted-foreground">
+          Page {page} of {totalPages} • Showing {filteredInvestors.length} of {total} investors
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+          >
+            Previous
+          </Button>
+
+          <span className="text-sm text-muted-foreground">Go to</span>
+
+          <Input
+            className="w-20 h-9"
+            type="number"
+            min={1}
+            max={totalPages}
+            value={goToPageInput}
+            onChange={(e) => setGoToPageInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleGoToPage();
+              }
+            }}
+          />
+
+          <Button variant="outline" size="sm" onClick={handleGoToPage}>
+            Go
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={page >= totalPages}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+
        <InvestorFilterBar 
         filters={filters} 
         setFilters={setFilters} 
@@ -228,6 +316,11 @@ const filteredInvestors = useMemo(() => {
                         stage="all"
                         onMoveToStage={handleMoveStage}
                         onSectorToggle={handleSectorToggle}
+                        onDeleteInvestor={(investor) => {
+                          if (window.confirm(`Delete investor "${investor.name}"?`)) {
+                            deleteInvestorMutation.mutate(investor.id);
+                          }
+                        }}
                         // ✅ Add the Handler
                                 onManageLinks={(i) => {
                                     setLinkInvestorId(i.id);

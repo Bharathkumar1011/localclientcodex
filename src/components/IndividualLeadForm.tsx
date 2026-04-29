@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback  } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useEffect, useCallback, type SyntheticEvent } from "react";import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,18 +12,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { useToast } from "@/hooks/use-toast";
 import { Building2, Users, MapPin, Globe, DollarSign, FileText, UserCheck, ChevronsUpDown,List,Pencil  } from "lucide-react";
 
-import { channel } from "diagnostics_channel";
-
-
-
 // Form validation schema - matches server-side expectations
 const individualLeadFormSchema = z.object({
   companyName: z.string().min(1, "Company name is required").max(255, "Company name too long"),
   sector: z.string().min(1, "Sector is required").max(100, "Sector too long"),
-  subSector: z.string().max(150, "Sub-sector too long").optional().or(z.literal("")), // <-- ADD THIS
+  subSector: z.string().max(150, "Sub-sector too long").optional().or(z.literal("")),
   location: z.string().optional(),
   businessDescription: z.string().optional(),
-  ChannelPartner: z.string().optional(),
+  Leadsource: z.string().optional(),
   website: z.string().url("Invalid website URL").optional().or(z.literal("")),
   revenueInrCr: z.coerce.number().positive("Revenue must be positive").optional(),
   ebitdaInrCr: z.coerce.number().optional(), // EBITDA can be negative
@@ -35,7 +30,47 @@ const individualLeadFormSchema = z.object({
 
 type IndividualLeadFormData = z.infer<typeof individualLeadFormSchema>;
 
+
+// ✅ Remembers the last text field the user was typing in.
+// This prevents the cursor from jumping back to the first input
+// when the user switches tabs/windows and comes back.
+const INDIVIDUAL_LEAD_FOCUS_KEY = "individualLeadFormLastFocusedField";
+
+type LeadFormFocusMemory = {
+  name: string;
+  selectionStart: number | null;
+  selectionEnd: number | null;
+};
+
+const isLeadFormTextElement = (
+  target: EventTarget | null
+): target is HTMLInputElement | HTMLTextAreaElement => {
+  return target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement;
+};
+
+const canRestoreCursorForElement = (element: HTMLInputElement | HTMLTextAreaElement) => {
+  if (element instanceof HTMLTextAreaElement) return true;
+
+  return ["text", "search", "tel", "url", "password", "email"].includes(element.type);
+};
+
+const getCursorPosition = (element: HTMLInputElement | HTMLTextAreaElement) => {
+  try {
+    return {
+      selectionStart: typeof element.selectionStart === "number" ? element.selectionStart : null,
+      selectionEnd: typeof element.selectionEnd === "number" ? element.selectionEnd : null,
+    };
+  } catch {
+    return {
+      selectionStart: null,
+      selectionEnd: null,
+    };
+  }
+};
+
+
 // Predefined sector options for consistency
+// Predefined sector options
 const SECTOR_OPTIONS = [
   "Auto Components",
   "Building Materials",
@@ -57,7 +92,7 @@ const SECTOR_OPTIONS = [
   "Travel and Hospitality"
 ];
 
-// ✅ Sub-sector options depend on selected Sector (from your CSV)
+// ✅ Sub-sector options depend on selected Sector
 const SUBSECTOR_MAP: Record<string, string[]> = {
   "Renewables": [
     "Solar (Encapsulants, Solar Glass, Frames, Backsheets)",
@@ -70,9 +105,7 @@ const SUBSECTOR_MAP: Record<string, string[]> = {
     "Recycling",
     "Renewable Energy",
   ],
-  "HR": [
-    "Manpower & Corporate Services",
-  ],
+  "HR": ["Manpower & Corporate Services"],
   "Consumer": [
     "Consumer (B2C - Food & Beverage)",
     "Consumer (B2C )",
@@ -81,28 +114,12 @@ const SUBSECTOR_MAP: Record<string, string[]> = {
     "F&B",
     "Consumer",
   ],
-  "IT": [
-    "IT",
-    "IT Services",
-  ],
-  "Healthcare & Pharma": [
-    "Pharma",
-    "Healthcare",
-    "Healthcare / Pharma",
-    "Hospital",
-  ],
-  "Industrials": [
-    "Lubricants",
-  ],
-  "Others": [
-    "Mining",
-  ],
-  "Building Materials": [
-    "Construction Materials",
-  ],
-  "Logistics": [
-    "Logistics",
-  ],
+  "IT": ["IT", "IT Services"],
+  "Healthcare & Pharma": ["Pharma", "Healthcare", "Healthcare / Pharma", "Hospital"],
+  "Industrials": ["Lubricants"],
+  "Others": ["Mining"],
+  "Building Materials": ["Construction Materials"],
+  "Logistics": ["Logistics"],
   "Specialty Chemicals": [
     "Sealants",
     "OEM",
@@ -114,18 +131,13 @@ const SUBSECTOR_MAP: Record<string, string[]> = {
     "Oilfield Chemicals",
     "Fragrances & flavors",
   ],
-  "Chemicals & Materials": [
-    "Specialty Lubricants",
-  ],
-  "Financial Services": [
-    "Ed Tech",
-    "NBFC",
-    "Fintech",
-  ],
+  "Chemicals & Materials": ["Specialty Lubricants"],
+  "Financial Services": ["Ed Tech", "NBFC", "Fintech"],
   "Auto Components": [],
   "Travel and Hospitality": [],
   "IPP": [],
 };
+
 
 
 interface IndividualLeadFormProps {
@@ -149,11 +161,10 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
   const { data: users = [] } = useQuery({
     queryKey: ['/users'],
     select: (data: any[]) => data.filter(user => ['analyst', 'partner'].includes(user.role)),
-    refetchOnWindowFocus: false, // Prevent refetching on tab switch
-    refetchOnMount: false, // Prevent refetching on mount
-    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    staleTime: 1000 * 60 * 5,
   });
-
 
   const form = useForm<IndividualLeadFormData>({
     resolver: zodResolver(individualLeadFormSchema),
@@ -164,7 +175,7 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
       location: "",
       businessDescription: "",
       website: "",
-      ChannelPartner: undefined,
+      Leadsource: undefined,
       revenueInrCr: undefined,
       ebitdaInrCr: undefined,
       patInrCr: undefined,
@@ -173,48 +184,137 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
     },
   });
 
-    // 1. Load saved data on mount
+    // ✅ Save the last input/textarea where the user was typing
+  const rememberFocusedTextField = useCallback((target: EventTarget | null) => {
+    if (!isLeadFormTextElement(target)) return;
+    if (!target.name) return;
+
+    const cursor = getCursorPosition(target);
+
+    const focusMemory: LeadFormFocusMemory = {
+      name: target.name,
+      selectionStart: cursor.selectionStart,
+      selectionEnd: cursor.selectionEnd,
+    };
+
+    sessionStorage.setItem(INDIVIDUAL_LEAD_FOCUS_KEY, JSON.stringify(focusMemory));
+  }, []);
+
+  // ✅ One shared event handler for all text fields inside this form
+  const handleFocusMemoryEvent = useCallback(
+    (event: SyntheticEvent<HTMLFormElement>) => {
+      rememberFocusedTextField(event.target);
+    },
+    [rememberFocusedTextField]
+  );
+
+  // ✅ Restore the last focused field when user comes back to the tab/window
+  const restoreSavedTextFieldFocus = useCallback(() => {
+    const savedFocus = sessionStorage.getItem(INDIVIDUAL_LEAD_FOCUS_KEY);
+    if (!savedFocus) return;
+
+    try {
+      const focusMemory = JSON.parse(savedFocus) as LeadFormFocusMemory;
+      if (!focusMemory.name) return;
+
+      const formFields = Array.from(
+        document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>("input, textarea")
+      );
+
+      const element = formFields.find((fieldElement) => fieldElement.name === focusMemory.name);
+
+      if (!element) return;
+
+      // Small delay lets browser/window focus finish first
+      window.setTimeout(() => {
+        element.focus({ preventScroll: true });
+
+        if (
+          canRestoreCursorForElement(element) &&
+          typeof focusMemory.selectionStart === "number" &&
+          typeof focusMemory.selectionEnd === "number"
+        ) {
+          element.setSelectionRange(focusMemory.selectionStart, focusMemory.selectionEnd);
+        }
+      }, 50);
+    } catch {
+      sessionStorage.removeItem(INDIVIDUAL_LEAD_FOCUS_KEY);
+    }
+  }, []);
+
+
+
+
+  // 1) Load saved draft on mount
   useEffect(() => {
     const savedData = sessionStorage.getItem("individualLeadFormData");
-    if (savedData) {
-      const parsed = JSON.parse(savedData);
-      // Reset form with saved data
-      form.reset(parsed);
-      // If there was a custom sector saved, make sure we switch to custom mode
-      if (parsed.sector && !SECTOR_OPTIONS.includes(parsed.sector)) {
-        setIsCustomSector(true);
-      }
-      if (parsed.subSector) {
-      // If this subsector isn't in the predefined list for the selected sector, switch to manual mode
-      const opts = SUBSECTOR_MAP[parsed.sector] || [];
-      if (!opts.includes(parsed.subSector)) {
-        setIsCustomSubSector(true);
-      }
-    }
-    }
-  }, [form]); // Run once on mount (technically depends on form)
 
-  // 2. Watch for changes and save to session storage
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        form.reset(parsed);
+
+        // If custom sector was saved, switch to manual mode
+        if (parsed.sector && !SECTOR_OPTIONS.includes(parsed.sector)) {
+          setIsCustomSector(true);
+        }
+
+        // ✅ If saved subSector isn't in the preset list for that sector, switch to manual mode
+        if (parsed.subSector) {
+          const opts = SUBSECTOR_MAP[parsed.sector] || [];
+          if (!opts.includes(parsed.subSector)) {
+            setIsCustomSubSector(true);
+          }
+        }
+      } catch {
+        sessionStorage.removeItem("individualLeadFormData");
+      }
+    }
+
+    // ✅ Restore last typing field after saved draft is loaded
+    restoreSavedTextFieldFocus();
+  }, [form, restoreSavedTextFieldFocus]);
+
+
+  // 2) Auto-save draft on every change
   useEffect(() => {
     const subscription = form.watch((value) => {
       sessionStorage.setItem("individualLeadFormData", JSON.stringify(value));
     });
     return () => subscription.unsubscribe();
-  }, [form.watch]);
+  }, [form]);
 
-  // 3. Clear storage on successful submit
-  // (You need to update your mutation onSuccess)
+    // ✅ When user switches to another tab/window and comes back,
+  // restore cursor to the last field they were editing.
+  useEffect(() => {
+    const handleWindowFocus = () => {
+      restoreSavedTextFieldFocus();
+    };
 
-  // ✅ Sector-dependent subsector list
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        restoreSavedTextFieldFocus();
+      }
+    };
+
+    window.addEventListener("focus", handleWindowFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [restoreSavedTextFieldFocus]);
+
+
   const selectedSector = form.watch("sector");
   const subSectorOptions = SUBSECTOR_MAP[selectedSector] || [];
-
+  
   // ✅ Reset subsector when sector changes (prevents invalid combos)
   useEffect(() => {
     form.setValue("subSector", "");
     setIsCustomSubSector(false);
   }, [selectedSector, form]);
-
 
 
   // Create individual lead mutation
@@ -232,8 +332,8 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
       await queryClient.invalidateQueries({ queryKey: ['/api/companies'], refetchType: 'active' });
       await queryClient.invalidateQueries({ queryKey: ['/dashboard/metrics'], refetchType: 'active' });
       
-      // 👇 ADD THIS LINE: Clear the saved draft
-      sessionStorage.removeItem("individualLeadFormData");
+      sessionStorage.removeItem("individualLeadFormData"); // Clear saved draft
+      sessionStorage.removeItem(INDIVIDUAL_LEAD_FOCUS_KEY); // Clear saved cursor position
 
       form.reset();
       onSuccess?.();
@@ -257,8 +357,6 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
       setIsSubmitting(false);
     }
   };
-  
-
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -271,13 +369,18 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
           Add a new company to the pipeline. Company names are automatically deduplicated to prevent duplicates.
         </CardDescription>
       </CardHeader>
-
       
       <CardContent>
-
-
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  <form
+                    onSubmit={form.handleSubmit(onSubmit)}
+                    className="space-y-6"
+                    onFocusCapture={handleFocusMemoryEvent}
+                    onClickCapture={handleFocusMemoryEvent}
+                    onKeyUpCapture={handleFocusMemoryEvent}
+                    onInputCapture={handleFocusMemoryEvent}
+                    onSelectCapture={handleFocusMemoryEvent}
+                  >
             {/* Company Information Section */}
             <div className="space-y-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
@@ -358,70 +461,6 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
                     </FormItem>
                   )}
                 />
-                 <FormField
-                  control={form.control}
-                  name="subSector"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Sub-sector</FormLabel>
-
-                      <div className="flex gap-2">
-                        {!isCustomSubSector ? (
-                          <Select
-                            onValueChange={field.onChange}
-                            value={field.value || ""}
-                            disabled={!selectedSector || subSectorOptions.length === 0}
-                          >
-                            <FormControl>
-                              <SelectTrigger className="flex-1">
-                                <SelectValue
-                                  placeholder={
-                                    !selectedSector
-                                      ? "Select sector first"
-                                      : subSectorOptions.length === 0
-                                        ? "No preset sub-sectors (type manually)"
-                                        : "Select sub-sector"
-                                  }
-                                />
-                              </SelectTrigger>
-                            </FormControl>
-
-                            <SelectContent className="h-[400px] bg-gray-50 overflow-y-auto">
-                              {subSectorOptions.map((s) => (
-                                <SelectItem key={s} value={s}>{s}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        ) : (
-                          <FormControl>
-                            <Input
-                              {...field}
-                              placeholder="Type sub-sector..."
-                              autoFocus
-                              className="flex-1 border-primary/50"
-                            />
-                          </FormControl>
-                        )}
-
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            setIsCustomSubSector(!isCustomSubSector);
-                            field.onChange("");
-                          }}
-                          title={isCustomSubSector ? "Switch to list" : "Type manually"}
-                        >
-                          {isCustomSubSector ? <List className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-                        </Button>
-                      </div>
-
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
 
 
                 <FormField
@@ -468,15 +507,15 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
               </div>
  <FormField
                   control={form.control}
-                  name="ChannelPartner"
+                  name="Leadsource"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="flex items-center gap-1">Channel Partner</FormLabel>
+                      <FormLabel className="flex items-center gap-1">Lead source</FormLabel>
                       <FormControl>
                         <Input 
-                          // {...field} 
-                          placeholder="Channel Partner"
-                          data-testid="input-channel-partner"
+                          {...field} 
+                          placeholder="Lead Source"
+                          data-testid="input-lead-source"
                         />
                       </FormControl>
                       <FormMessage />
@@ -610,25 +649,22 @@ export function IndividualLeadForm({ onSuccess, onCancel, currentUser }: Individ
               />
             </div>
 
-
             {/* Form Actions */}
-              <div className="flex justify-end space-x-3 pt-6 border-t">
-                {onCancel && (
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={() => {
-                      // 👇 Clear the saved form draft so it doesn't reappear next time
-                      sessionStorage.removeItem("individualLeadFormData");
-                      // 👇 Close the popup
-                      onCancel();
-                    }}
-                    data-testid="button-cancel"
-                  >
-                    Cancel
-                  </Button>
-                )}
-
+            <div className="flex justify-end space-x-3 pt-6 border-t">
+              {onCancel && (
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    sessionStorage.removeItem("individualLeadFormData");
+                    sessionStorage.removeItem(INDIVIDUAL_LEAD_FOCUS_KEY);
+                    onCancel?.();
+                  }}
+                  data-testid="button-cancel"
+                >
+                  Cancel
+                </Button>
+              )}
               
               <Button 
                 type="submit" 

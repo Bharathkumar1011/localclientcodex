@@ -1,13 +1,25 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { TrendingUp, TrendingDown, Users, Target, Calendar, Loader2, Database, FileText, PauseCircle, CheckCircle, Newspaper, ExternalLink } from "lucide-react";
+import { TrendingUp, TrendingDown, Users, Target, Calendar, Loader2, Database, FileText, PauseCircle, CheckCircle, Newspaper, ExternalLink, ArrowRight, BarChart3, PieChart as PieChartIcon } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { ActivityLog } from "@/components/ActivityLog";
 import type { User } from "@/lib/types";
 import { useLocation } from "wouter";
-
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip as RechartsTooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from "recharts";
 
 
 interface NewsItem {
@@ -80,6 +92,17 @@ interface Lead {
   id: number;
   companyName: string;
   stage: string;
+  company?: {
+    name?: string;
+    companyName?: string;
+  };
+}
+
+interface PaginatedStageLeadsResponse {
+  data: Lead[];
+  total: number;
+  page: number;
+  limit: number;
 }
 
 interface DashboardMetrics {
@@ -114,6 +137,20 @@ interface SourceStageTableResponse {
   partners: SourceStageRow[];
   userRole?: string;
   includeAll?: boolean;
+}
+
+interface ActiveLeadSectorRow {
+  sector: string;
+  count: number;
+  percentage: number;
+}
+
+interface ActiveLeadSectorResponse {
+  scope: 'organization' | 'personal';
+  totalActive: number;
+  rows: ActiveLeadSectorRow[];
+  userRole?: string;
+  isPersonalized?: boolean;
 }
 
 
@@ -185,6 +222,291 @@ interface MetricCardProps {
   );
 }
 
+function ActiveLeadFlowChart({
+  qualified,
+  outreach,
+  pitching,
+  mandates,
+  total,
+  onStageClick,
+}: {
+  qualified: number;
+  outreach: number;
+  pitching: number;
+  mandates: number;
+  total: number;
+  onStageClick: (path: string) => void;
+}) {
+  const stages = [
+    {
+      label: "Qualified",
+      value: qualified,
+      path: "/qualified",
+      color: "#94a3b8",
+    },
+    {
+      label: "Outreach",
+      value: outreach,
+      path: "/outreach",
+      color: "#60a5fa",
+    },
+    {
+      label: "Pitching",
+      value: pitching,
+      path: "/pitching",
+      color: "#3b82f6",
+    },
+    {
+      label: "Mandates",
+      value: mandates,
+      path: "/mandates",
+      color: "#2563eb",
+    },
+  ];
+
+  const chartData = stages
+    .filter((stage) => stage.value > 0)
+    .map((stage) => ({
+      name: stage.label,
+      value: stage.value,
+      color: stage.color,
+    }));
+
+  return (
+    <Card className="h-full overflow-hidden shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <PieChartIcon className="h-4 w-4 text-blue-600" />
+          Active Lead Flow
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Donut view and clickable movement flow of active BD leads
+        </p>
+      </CardHeader>
+
+      <CardContent>
+        {total === 0 ? (
+          <div className="flex h-64 flex-col items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
+            <Target className="mb-2 h-8 w-8 opacity-20" />
+            <p>No active leads available.</p>
+          </div>
+        ) : (
+          <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+            <div className="h-[280px] min-w-0">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={90}
+                    paddingAngle={4}
+                    dataKey="value"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`active-lead-cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+
+                  <RechartsTooltip
+                    formatter={(value: any, name: any) => [`${value} leads`, name]}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 4px 10px rgba(0,0,0,0.12)",
+                    }}
+                  />
+
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="min-w-0 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {stages.map((stage) => {
+                  const percentage = total > 0 ? Math.round((stage.value / total) * 100) : 0;
+
+                  return (
+                    <button
+                      key={stage.label}
+                      type="button"
+                      onClick={() => onStageClick(stage.path)}
+                      className="rounded-xl border bg-white p-4 text-left transition-all hover:bg-slate-50 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: stage.color }}
+                          />
+                          <span className="truncate text-sm font-medium text-muted-foreground">
+                            {stage.label}
+                          </span>
+                        </div>
+
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium">
+                          {percentage}%
+                        </span>
+                      </div>
+
+                      <div className="mt-3 text-3xl font-bold">
+                        {stage.value}
+                      </div>
+
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${Math.max(percentage, stage.value > 0 ? 6 : 0)}%`,
+                            backgroundColor: stage.color,
+                          }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-muted-foreground">
+                <span>Qualified</span>
+                <ArrowRight className="h-4 w-4" />
+                <span>Outreach</span>
+                <ArrowRight className="h-4 w-4" />
+                <span>Pitching</span>
+                <ArrowRight className="h-4 w-4" />
+                <span>Mandates</span>
+              </div>
+
+              <div className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                Total active leads:{" "}
+                <span className="font-semibold text-foreground">{total}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ActiveLeadsBySectorChart({
+  data,
+  isLoading,
+}: {
+  data?: ActiveLeadSectorResponse;
+  isLoading: boolean;
+}) {
+  const rawRows = data?.rows ?? [];
+  const totalActive = data?.totalActive ?? 0;
+
+  const visibleLimit = 9;
+  const sortedRows = [...rawRows].sort((a, b) => b.count - a.count);
+  const visibleRows = sortedRows.slice(0, visibleLimit);
+  const remainingRows = sortedRows.slice(visibleLimit);
+
+  const remainingCount = remainingRows.reduce((sum, row) => sum + row.count, 0);
+
+  const chartRows =
+    remainingRows.length > 0
+      ? [
+          ...visibleRows,
+          {
+            sector: "Other sectors",
+            count: remainingCount,
+            percentage: totalActive > 0 ? Number(((remainingCount / totalActive) * 100).toFixed(2)) : 0,
+          },
+        ]
+      : visibleRows;
+
+  const rechartsData = chartRows.map((row) => ({
+    sector: row.sector,
+    count: row.count,
+    percentage: row.percentage,
+    label: `${row.count} leads · ${row.percentage}%`,
+  }));
+
+  return (
+    <Card className="h-full overflow-hidden shadow-sm">
+      <CardHeader>
+        <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-violet-600" />
+          Active Leads by Sector
+        </CardTitle>
+        <p className="text-sm text-muted-foreground">
+          Sector-wise split of Qualified, Outreach, Pitching, and Mandates leads
+        </p>
+      </CardHeader>
+
+      <CardContent>
+        {isLoading ? (
+          <div className="flex h-[360px] items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : chartRows.length === 0 ? (
+          <div className="flex h-[360px] flex-col items-center justify-center rounded-lg border border-dashed text-center text-sm text-muted-foreground">
+            <BarChart3 className="mb-2 h-8 w-8 opacity-20" />
+            <p>No active sector data available.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="h-[360px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={rechartsData}
+                  layout="vertical"
+                  margin={{ top: 10, right: 35, left: 35, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} opacity={0.25} />
+
+                  <XAxis
+                    type="number"
+                    allowDecimals={false}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+
+                  <YAxis
+                    type="category"
+                    dataKey="sector"
+                    width={145}
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 12 }}
+                  />
+
+                  <RechartsTooltip
+                    formatter={(value: any) => [`${value} leads`, "Count"]}
+                    labelFormatter={(label: any) => `Sector: ${label}`}
+                    contentStyle={{
+                      borderRadius: "8px",
+                      border: "none",
+                      boxShadow: "0 4px 10px rgba(0,0,0,0.12)",
+                    }}
+                  />
+
+                  <Bar
+                    dataKey="count"
+                    fill="#8b5cf6"
+                    radius={[0, 6, 6, 0]}
+                    barSize={18}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              Total active leads counted:{" "}
+              <span className="font-semibold text-foreground">{totalActive}</span>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Dashboard({ currentUser }: DashboardProps) {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
@@ -201,17 +523,42 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     enabled: !!currentUser,
   });
 
-
-  // Fetch top leads in Pitching stage
-  const { data: pitchingLeads = [] } = useQuery<Lead[]>({
-    queryKey: ['/leads/stage/pitching'],
+    // Active leads by sector chart
+  const {
+    data: activeLeadsBySector,
+    isLoading: isActiveLeadsBySectorLoading,
+  } = useQuery<ActiveLeadSectorResponse>({
+    queryKey: ['/dashboard/active-leads-by-sector'],
     enabled: !!currentUser,
   });
 
-  // Fetch top leads in Mandates stage
-  const { data: mandatesLeads = [] } = useQuery<Lead[]>({
-    queryKey: ['/leads/stage/mandates'],
+
+  // Fetch top leads in Pitching stage
+  const { data: pitchingLeadsResponse } = useQuery<PaginatedStageLeadsResponse | Lead[]>({
+    queryKey: ['/leads/stage/pitching', 'dashboard-top'],
     enabled: !!currentUser,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const res = await apiRequest(
+        'GET',
+        '/leads/stage/pitching?page=1&limit=3&sortBy=dateUpdated-desc'
+      );
+      return res.json();
+    },
+  });
+
+  // Fetch top leads in Mandates stage
+  const { data: mandatesLeadsResponse } = useQuery<PaginatedStageLeadsResponse | Lead[]>({
+    queryKey: ['/leads/stage/mandates', 'dashboard-top'],
+    enabled: !!currentUser,
+    refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const res = await apiRequest(
+        'GET',
+        '/leads/stage/mandates?page=1&limit=3&sortBy=dateUpdated-desc'
+      );
+      return res.json();
+    },
   });
 
   // Populate dummy data mutation (admin only)
@@ -235,10 +582,21 @@ export default function Dashboard({ currentUser }: DashboardProps) {
     },
   });
 
-  const topPitching = pitchingLeads.slice(0, 3).map((lead: any) => lead.company?.name || lead.company?.companyName || 'Unnamed');
-  const topMandates = mandatesLeads.slice(0, 3).map((lead: any) => lead.company?.name || lead.company?.companyName || 'Unnamed');
-  console.log("Pitching Leads Data:", pitchingLeads);
-  console.log("Mandates Leads Data:", mandatesLeads);
+  const pitchingLeads = Array.isArray(pitchingLeadsResponse)
+    ? pitchingLeadsResponse
+    : (pitchingLeadsResponse?.data ?? []);
+
+  const mandatesLeads = Array.isArray(mandatesLeadsResponse)
+    ? mandatesLeadsResponse
+    : (mandatesLeadsResponse?.data ?? []);
+
+  const topPitching = pitchingLeads
+    .slice(0, 3)
+    .map((lead: any) => lead.company?.name || lead.company?.companyName || lead.companyName || 'Unnamed');
+
+  const topMandates = mandatesLeads
+    .slice(0, 3)
+    .map((lead: any) => lead.company?.name || lead.company?.companyName || lead.companyName || 'Unnamed');
 
   if (isLoading) {
     return (
@@ -352,6 +710,22 @@ const activeLeadsCount = qualifiedCount + outreachCount + pitchingCount + mandat
 
       {/* Full Width News Feed */}
       <NewsFeedCard />
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <ActiveLeadFlowChart
+          qualified={qualifiedCount}
+          outreach={outreachCount}
+          pitching={pitchingCount}
+          mandates={mandatesCount}
+          total={activeLeadsCount}
+          onStageClick={setLocation}
+        />
+
+        <ActiveLeadsBySectorChart
+          data={activeLeadsBySector}
+          isLoading={isActiveLeadsBySectorLoading}
+        />
+      </div>
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* ✅ Table first + full width */}

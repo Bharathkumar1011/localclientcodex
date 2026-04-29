@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -6,6 +6,7 @@ import type { Investor } from "@/lib/types";
 
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import InvestorCard from "@/components/InvestorCard";
 import InvestorPOCManagement from "@/components/InvestorPOCManagement";
@@ -45,25 +46,8 @@ export default function InvestorWarm() {
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkInvestorId, setLinkInvestorId] = useState<number | null>(null);
 
-  // Fetch Investors in Warm Stage
-  const { data: investors = [], isLoading } = useQuery<any[]>({
-    queryKey: ["investors", "stage", "warm"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/investors?stage=warm");
-      return res.json();
-    },
-    refetchOnWindowFocus: false,
-  });
 
-  // ✅ 1. Calculate Unique Locations
-  const uniqueLocations = useMemo(() => {
-    if (!investors) return [];
-    const locs = investors
-      .map(inv => inv.location)
-      .filter(l => l && typeof l === 'string' && l.trim().length > 0)
-      .map(l => l!.trim());
-    return Array.from(new Set(locs)).sort();
-  }, [investors]);
+
 
 // ✅ Filter State
   const [filters, setFilters] = useState<InvestorFilters>({
@@ -75,38 +59,105 @@ export default function InvestorWarm() {
     linkStatus: "all" // ✅ Add this line
   });
 
+const [page, setPage] = useState(1);
+const limit = 25;
+
+useEffect(() => {
+  setPage(1);
+}, [filters.search]);
+
+  const { data: investorsResponse, isLoading } = useQuery<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }>({
+    queryKey: ["investors", "stage", "warm", page, filters.search],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        stage: "warm",
+        page: String(page),
+        limit: String(limit),
+        search: filters.search || "",
+      });
+
+      const res = await apiRequest("GET", `/investors?${params.toString()}`);
+      return res.json();
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  const investors = investorsResponse?.data ?? [];
+  const total = investorsResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+
+  const [goToPageInput, setGoToPageInput] = useState(String(page));
+
+useEffect(() => {
+  setGoToPageInput(String(page));
+}, [page]);
+
+const handleGoToPage = () => {
+  if (!goToPageInput.trim()) return;
+
+  const targetPage = Number(goToPageInput);
+  if (!Number.isFinite(targetPage)) return;
+
+  const safePage = Math.min(Math.max(1, Math.trunc(targetPage)), totalPages);
+  setPage(safePage);
+  setGoToPageInput(String(safePage));
+};
+
+    // ✅ 1. Calculate Unique Locations
+  const uniqueLocations = useMemo(() => {
+    if (!investors) return [];
+    const locs = investors
+      .map(inv => inv.location)
+      .filter(l => l && typeof l === 'string' && l.trim().length > 0)
+      .map(l => l!.trim());
+    return Array.from(new Set(locs)).sort();
+  }, [investors]);
+
+
   // ✅ Filter Logic
-  const rows = useMemo(() => {
-    return (investors ?? []).filter(inv => {
-      const q = filters.search.toLowerCase();
-      const matchesSearch = !q || (inv.name?.toLowerCase().includes(q) || false) || (inv.website?.toLowerCase().includes(q) || false);
-      const matchesSector = filters.sector === "all" || (inv.sector?.includes(filters.sector) || false);
-      const matchesType = filters.investorType === "all" || (inv.investorType === filters.investorType);
-      const l = filters.location.toLowerCase();
-      const matchesLocation = !l || (inv.location?.toLowerCase().includes(l) || false);
+const rows = useMemo(() => {
+  return (investors ?? []).filter(inv => {
+    const matchesSector = filters.sector === "all" || (inv.sector?.includes(filters.sector) || false);
+    const matchesType = filters.investorType === "all" || (inv.investorType === filters.investorType);
+    const l = filters.location.toLowerCase();
+    const matchesLocation = !l || (inv.location?.toLowerCase().includes(l) || false);
 
-      const matchesMandateStatus =
-        filters.mandateStatus === "all" ||
-        (inv.mandateStatus || "") === filters.mandateStatus;
+    const matchesMandateStatus =
+      filters.mandateStatus === "all" ||
+      (inv.mandateStatus || "") === filters.mandateStatus;
 
-     // ✅ NEW: Link Status Filter logic
-      let matchesLinkStatus = true;
-      if (filters.linkStatus === "linked") {
-        matchesLinkStatus = inv.linkedLeads && inv.linkedLeads.length > 0;
-      } else if (filters.linkStatus === "unlinked") {
-        matchesLinkStatus = !inv.linkedLeads || inv.linkedLeads.length === 0;
-      }
+    let matchesLinkStatus = true;
+    if (filters.linkStatus === "linked") {
+      matchesLinkStatus = inv.linkedLeads && inv.linkedLeads.length > 0;
+    } else if (filters.linkStatus === "unlinked") {
+      matchesLinkStatus = !inv.linkedLeads || inv.linkedLeads.length === 0;
+    }
 
-      return (
-        matchesSearch &&
-        matchesSector &&
-        matchesType &&
-        matchesLocation &&
-        matchesMandateStatus &&
-        matchesLinkStatus
-      );
-    });
-  }, [investors, filters]);
+    return (
+      matchesSector &&
+      matchesType &&
+      matchesLocation &&
+      matchesMandateStatus &&
+      matchesLinkStatus
+    );
+  });
+}, [investors, filters]);
+
+    const deleteInvestorMutation = useMutation({
+    mutationFn: async (investorId: number) => {
+      await apiRequest("PATCH", `/investors/${investorId}/soft-delete`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investors"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-metrics"] });
+    },
+  });
 
   const updateInvestorMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: any }) => {
@@ -197,6 +248,11 @@ export default function InvestorWarm() {
                 stage="warm" 
                 onMoveToStage={handleMoveStage}
                 onSectorToggle={handleSectorToggle}
+                onDeleteInvestor={(investor) => {
+                    if (window.confirm(`Delete investor "${investor.name}"?`)) {
+                        deleteInvestorMutation.mutate(investor.id);
+                    }
+                }}
                 // ✅ Add the Handler
                 onManageLinks={(i) => {
                     setLinkInvestorId(i.id);
@@ -213,6 +269,52 @@ export default function InvestorWarm() {
           </div>
         </CardContent>
       </Card>
+
+<div className="flex items-center justify-between pt-2">
+  <div className="text-sm text-muted-foreground">
+    Page {page} of {totalPages} • Showing {rows.length} of {total} investors
+  </div>
+
+  <div className="flex items-center gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setPage((p) => Math.max(1, p - 1))}
+      disabled={page <= 1}
+    >
+      Previous
+    </Button>
+
+    <span className="text-sm text-muted-foreground">Go to</span>
+
+    <Input
+      className="w-20 h-9"
+      type="number"
+      min={1}
+      max={totalPages}
+      value={goToPageInput}
+      onChange={(e) => setGoToPageInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          handleGoToPage();
+        }
+      }}
+    />
+
+    <Button variant="outline" size="sm" onClick={handleGoToPage}>
+      Go
+    </Button>
+
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      disabled={page >= totalPages}
+    >
+      Next
+    </Button>
+  </div>
+</div>
 
       <Dialog open={pocManageOpen} onOpenChange={setPocManageOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">

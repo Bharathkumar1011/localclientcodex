@@ -52,6 +52,8 @@ import InvestorContactManagementOtherFields from "@/pages/InvestorContactManagem
 
 import InvestorHome from "@/pages/InvestorHome"; // Import the new page
 
+import DeletedInvestors from "@/pages/DeletedInvestors";
+
 import PitchingDashboard from "@/pages/PitchingDashboard";
 import PitchingEditPage from "@/pages/PitchingEditPage";
 
@@ -187,6 +189,8 @@ function Router({ isAuthenticated, userRole }: { isAuthenticated: boolean; userR
               <Route path="/leads/:leadId/link-investors" component={LinkInvestorsPage} />
 
               <Route path="/investor-relation/home" component={InvestorHome} /> {/* ✅ Added Route */}
+
+              <Route path="/investor-relation/investor-management/deleted" component={DeletedInvestors} />
               
               {/* ======================== */}
               {/* EPN Relations (Stage 0)  */}

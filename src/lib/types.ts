@@ -396,13 +396,38 @@ export interface InvestorContact {
 }
 // ✅ Add this to the bottom or near Investor types
 export interface InvestorMetrics {
-  totalInvestors: number; // Universe
+  totalInvestors: number;
   outreach: number;
   active: number;
   warm: number;
   dealmaking: number;
-}
+  deleted?: number;
 
+  stageDistribution?: Array<{
+    key: string;
+    label: string;
+    count: number;
+    percentage: number;
+  }>;
+
+  sectorDistribution?: Array<{
+    sector: string;
+    count: number;
+    percentage: number;
+  }>;
+
+  health?: {
+    score: number;
+    totalContacts: number;
+    investorsWithNoContacts: number;
+    incompletePrimaryContacts: number;
+    contactCoverage: number;
+    primaryPocCoverage: number;
+    emailCoverage: number;
+    phoneCoverage: number;
+    linkedinCoverage: number;
+  };
+}
 
 export interface InvestorEventItem {
   id: number;
@@ -442,4 +467,30 @@ export interface EpnPartner {
   stage: "outreach" | "active" | "rainmaking";
   createdAt?: string;
   updatedAt?: string;
+}
+
+export type UnifiedSearchEntityType = "lead" | "investor" | "epn";
+
+export interface UnifiedSearchResult {
+  entityType: UnifiedSearchEntityType;
+  cardTypeLabel: "LeadCard" | "InvestorCard" | "EpnCard";
+  id: number;
+  title: string;
+  subtitle?: string | null;
+  matchedOn?: string | null;
+  matchedValue?: string | null;
+  stage?: string | null;
+  bucket?: string | null;
+  navigatePath: string;
+}
+
+export interface UnifiedSearchResponse {
+  query: string;
+  results: UnifiedSearchResult[];
+  counts: {
+    leads: number;
+    investors: number;
+    epns: number;
+  };
+  epnAccess: boolean;
 }

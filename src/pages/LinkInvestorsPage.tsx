@@ -22,6 +22,19 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+type PaginatedInvestorsResponse = {
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+const normalizeInvestorsResponse = (payload: any): any[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
 export default function LinkInvestorsPage() {
   const params = useParams();
   const [, setLocation] = useLocation();
@@ -42,21 +55,57 @@ export default function LinkInvestorsPage() {
     );
   }
 
-  // 1. Fetch ALL investors
-  const { data: investors = [], isLoading: isLoadingInvestors } = useQuery<any[]>({
-    queryKey: ["/api/investors"],
+  // 1. Fetch investors for linking
+  // Supports both old array response and new paginated response.
+  const { data: investors = [], isLoading: isLoadingInvestors, error: investorsError } = useQuery<any[]>({
+    queryKey: ["/api/investors", "link-investors", "all"],
+    refetchOnWindowFocus: false,
+    retry: 1,
     queryFn: async () => {
-      const res = await apiRequest("GET", "/investors?stage=all"); 
-      return res.json();
+      const firstRes = await apiRequest("GET", "/investors?stage=all&page=1&limit=100");
+      const firstJson: PaginatedInvestorsResponse | any[] = await firstRes.json();
+
+      // Old API safety fallback
+      if (Array.isArray(firstJson)) {
+        return firstJson;
+      }
+
+      const firstPageInvestors = normalizeInvestorsResponse(firstJson);
+      const total = Number((firstJson as PaginatedInvestorsResponse)?.total || firstPageInvestors.length);
+      const limit = Number((firstJson as PaginatedInvestorsResponse)?.limit || 100);
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+
+      if (totalPages <= 1) {
+        return firstPageInvestors;
+      }
+
+      const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
+
+      const remainingResults = await Promise.all(
+        remainingPages.map(async (pageNo) => {
+          const res = await apiRequest("GET", `/investors?stage=all&page=${pageNo}&limit=${limit}`);
+          const json = await res.json();
+          return normalizeInvestorsResponse(json);
+        })
+      );
+
+      return [...firstPageInvestors, ...remainingResults.flat()];
     },
   });
-
   // 2. Fetch already linked investors
-  const { data: linkedInvestors = [], isLoading: isLoadingLinked } = useQuery<any[]>({
+  // 2. Fetch already linked investors
+  const { data: linkedInvestors = [], isLoading: isLoadingLinked, error: linkedError } = useQuery<any[]>({
     queryKey: ["/leads/linked-investors", leadId],
+    refetchOnWindowFocus: false,
+    retry: 1,
     queryFn: async () => {
       const res = await apiRequest("GET", `/leads/${leadId}/linked-investors`);
-      return res.json();
+      const json = await res.json();
+
+      // Old/current linked route should be array, but keep this safe.
+      if (Array.isArray(json)) return json;
+      if (Array.isArray(json?.data)) return json.data;
+      return [];
     },
     enabled: !!leadId,
   });
@@ -169,6 +218,21 @@ export default function LinkInvestorsPage() {
   });
 
   const isLoading = isLoadingInvestors || isLoadingLinked;
+  const loadError = investorsError || linkedError;
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[50vh] gap-4">
+        <h2 className="text-xl font-semibold text-red-600">Failed to load investor linking page</h2>
+        <p className="text-sm text-muted-foreground">
+          {String((loadError as any)?.message || loadError)}
+        </p>
+        <Button variant="outline" onClick={() => window.history.back()}>
+          Go Back
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (

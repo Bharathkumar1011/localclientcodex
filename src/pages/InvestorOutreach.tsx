@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -35,6 +35,56 @@ export default function InvestorOutreach() {
     mandateStatus: "all",
     linkStatus: "all"
   });
+
+const [page, setPage] = useState(1);
+const limit = 25;
+
+useEffect(() => {
+  setPage(1);
+}, [filters.search]);
+
+  const { data: investorsResponse, isLoading } = useQuery<{
+    data: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }>({
+    queryKey: ["investors", "stage", "outreach", page, filters.search],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        stage: "outreach",
+        page: String(page),
+        limit: String(limit),
+        search: filters.search || "",
+      });
+
+      const res = await apiRequest("GET", `/investors?${params.toString()}`);
+      return res.json();
+    },
+    refetchOnWindowFocus: false,
+  });
+
+  const investors = investorsResponse?.data ?? [];
+  const total = investorsResponse?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+const [goToPageInput, setGoToPageInput] = useState(String(page));
+
+useEffect(() => {
+  setGoToPageInput(String(page));
+}, [page]);
+
+const handleGoToPage = () => {
+  if (!goToPageInput.trim()) return;
+
+  const targetPage = Number(goToPageInput);
+  if (!Number.isFinite(targetPage)) return;
+
+  const safePage = Math.min(Math.max(1, Math.trunc(targetPage)), totalPages);
+  setPage(safePage);
+  setGoToPageInput(String(safePage));
+};
+
 
   const [open, setOpen] = useState(false);
   const [isImportOpen, setIsImportOpen] = useState(false); // ✅ Controls the new dialog
@@ -122,9 +172,26 @@ export default function InvestorOutreach() {
     "Specialty Chemicals", "Travel and Hospitality"
   ];
   const INVESTOR_TYPES = [
-    "PE", "Family Office", "Strategic", "Angel Network", 
-    "Debt Fund", "Bank", "Overseas Investor", "Other"
+    "PE",
+    "Family Office",
+    "SFO",
+    "Strategic",
+    "Angel Network",
+    "Debt Fund",
+    "Bank",
+    "Overseas Investor",
+    "Other",
   ];
+   const deleteInvestorMutation = useMutation({
+    mutationFn: async (investorId: number) => {
+      await apiRequest("PATCH", `/investors/${investorId}/soft-delete`, {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["investors"] });
+      queryClient.invalidateQueries({ queryKey: ["investor-metrics"] });
+    },
+  });
+
 
   const updateInvestorMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: number; updates: any }) => {
@@ -165,14 +232,7 @@ export default function InvestorOutreach() {
     );
   }
 
-  const { data: investors = [], isLoading } = useQuery<any[]>({
-    queryKey: ["investors", "stage", "outreach"],
-    queryFn: async () => {
-      const res = await apiRequest("GET", "/investors?stage=outreach");
-      return res.json();
-    },
-    refetchOnWindowFocus: false,
-  });
+
 
   // ✅ 1. Calculate Unique Locations
 // ✅ 1. Fetch ALL Unique Locations from the database (including CSV imports)
@@ -191,8 +251,6 @@ export default function InvestorOutreach() {
   // ✅ Apply Filters
   const rows = useMemo(() => {
     return (investors ?? []).filter(inv => {
-      const q = filters.search.toLowerCase();
-      const matchesSearch = !q || (inv.name?.toLowerCase().includes(q) || false) || (inv.website?.toLowerCase().includes(q) || false);
       const matchesSector = filters.sector === "all" || (inv.sector?.includes(filters.sector) || false);
       const matchesType = filters.investorType === "all" || (inv.investorType === filters.investorType);
       const l = filters.location.toLowerCase();
@@ -202,7 +260,6 @@ export default function InvestorOutreach() {
         filters.mandateStatus === "all" ||
         (inv.mandateStatus || "") === filters.mandateStatus;
 
-      // ✅ NEW: Link Status Filter
       let matchesLinkStatus = true;
       if (filters.linkStatus === "linked") {
         matchesLinkStatus = inv.linkedLeads && inv.linkedLeads.length > 0;
@@ -211,7 +268,6 @@ export default function InvestorOutreach() {
       }
 
       return (
-        matchesSearch &&
         matchesSector &&
         matchesType &&
         matchesLocation &&
@@ -220,6 +276,7 @@ export default function InvestorOutreach() {
       );
     });
   }, [investors, filters]);
+
 
 const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery<LeadLite[]>({
   queryKey: ["/leads/stage/universe"],
@@ -399,6 +456,11 @@ const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery<LeadLit
                 stage="outreach"
                 onMoveToStage={handleMoveStage}
                 onSectorToggle={handleSectorToggle}
+                onDeleteInvestor={(investor) => {
+                  if (window.confirm(`Delete investor "${investor.name}"?`)) {
+                    deleteInvestorMutation.mutate(investor.id);
+                  }
+                }}
                 onManageLinks={(i) => {
                   setLinkInvestorId(i.id);
                   setSelectedLeadIds([]);
@@ -416,6 +478,54 @@ const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery<LeadLit
           </div>
         </CardContent>
       </Card>
+
+<div className="flex items-center justify-between pt-2">
+  <div className="text-sm text-muted-foreground">
+    Page {page} of {totalPages} • Showing {rows.length} of {total} investors
+  </div>
+
+  <div className="flex items-center gap-2">
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setPage((p) => Math.max(1, p - 1))}
+      disabled={page <= 1}
+    >
+      Previous
+    </Button>
+
+    <span className="text-sm text-muted-foreground">Go to</span>
+
+    <Input
+      className="w-20 h-9"
+      type="number"
+      min={1}
+      max={totalPages}
+      value={goToPageInput}
+      onChange={(e) => setGoToPageInput(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          handleGoToPage();
+        }
+      }}
+    />
+
+    <Button variant="outline" size="sm" onClick={handleGoToPage}>
+      Go
+    </Button>
+
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+      disabled={page >= totalPages}
+    >
+      Next
+    </Button>
+  </div>
+</div>
+
+      
 
       {/* Add Investor Modal */}
       <Dialog open={open} onOpenChange={setOpen}>

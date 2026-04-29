@@ -85,6 +85,40 @@ interface LeadWithDetails extends Lead {
   assignedInterns?: string[]; 
 }
 
+interface PaginatedLeadsResponse {
+  data: LeadWithDetails[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+interface LeadStageFilterOptions {
+  sectors: string[];
+  subSectors: string[];
+  locations: string[];
+  assignees: { id: string; name: string }[];
+  partners: { id: string; name: string }[];
+  leadSources: string[];
+  leadTemperatures: string[];
+}
+
+const getInitialLeadStagePage = (stage: string) => {
+  try {
+    const raw = sessionStorage.getItem(`leadMgmt:page:${stage}`);
+    if (!raw) return 1;
+
+    const parsed = JSON.parse(raw);
+    const savedPage = Number(parsed?.page);
+
+    return Number.isFinite(savedPage) && savedPage > 0 ? savedPage : 1;
+  } catch {
+    return 1;
+  }
+};
+
+
+
+
 
 interface LeadManagementProps {
   stage:
@@ -104,8 +138,6 @@ interface LeadManagementProps {
 
 
 export default function LeadManagement({ stage, currentUser }: LeadManagementProps) {
-  console.log('LeadManagement rendered for stage:', stage);
-  console.log('currentUser:', currentUser);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
 
@@ -145,7 +177,27 @@ const [filterStatus, setFilterStatus] = useState<string>("all"); // keep if you 
 
 // Read values from global filters
 // Read values from global filters (✅ multi-select arrays; empty = "All")
-const searchTerm = filters.searchTerm;
+const searchTerm = filters.searchTerm ?? "";
+const [searchInput, setSearchInput] = useState(searchTerm);
+
+const PAGE_SIZE = 25;
+const [page, setPage] = useState(() => getInitialLeadStagePage(stage));
+const [pageInput, setPageInput] = useState(() => String(getInitialLeadStagePage(stage)));
+const [debouncedSearch, setDebouncedSearch] = useState(searchTerm);
+const listTopRef = useRef<HTMLDivElement | null>(null);
+
+useEffect(() => {
+  setSearchInput(searchTerm);
+}, [searchTerm]);
+
+useEffect(() => {
+  const timer = window.setTimeout(() => {
+    setDebouncedSearch(searchInput.trim());
+  }, 400);
+
+  return () => window.clearTimeout(timer);
+}, [searchInput]);
+
 
 const filterSector: string[] = (filters.filterSector ?? []) as string[];
 const filterSubSector: string[] = (filters.filterSubSector ?? []) as string[];
@@ -166,6 +218,79 @@ const filterEpnStage: string[] = ((filters as any).filterEpnStage ?? []) as stri
 const filterEpnPartnerIds: string[] = ((filters as any).filterEpnPartnerIds ?? []) as string[];
 
 
+const leadPageStorageKey = `leadMgmt:page:${stage}`;
+
+const leadPageScopeKey = useMemo(() => {
+  return JSON.stringify({
+    stage,
+    debouncedSearch,
+    sortBy,
+    filterSector,
+    filterSubSector,
+    filterAssignedTo,
+    filterPartner,
+    filterStage,
+    filterLocation,
+    filterPoc,
+    filterLeadSource,
+    filterLeadTemperature,
+  });
+}, [
+  stage,
+  debouncedSearch,
+  sortBy,
+  JSON.stringify(filterSector),
+  JSON.stringify(filterSubSector),
+  JSON.stringify(filterAssignedTo),
+  JSON.stringify(filterPartner),
+  JSON.stringify(filterStage),
+  JSON.stringify(filterLocation),
+  JSON.stringify(filterPoc),
+  JSON.stringify(filterLeadSource),
+  JSON.stringify(filterLeadTemperature),
+]);
+
+const saveLeadStagePage = (pageToSave: number) => {
+  sessionStorage.setItem(
+    leadPageStorageKey,
+    JSON.stringify({
+      scopeKey: leadPageScopeKey,
+      page: pageToSave,
+    })
+  );
+};
+
+useEffect(() => {
+  let restoredPage = 1;
+
+  try {
+    const raw = sessionStorage.getItem(leadPageStorageKey);
+    const parsed = raw ? JSON.parse(raw) : null;
+
+    if (parsed?.scopeKey === leadPageScopeKey) {
+      const savedPage = Number(parsed?.page);
+      if (Number.isFinite(savedPage) && savedPage > 0) {
+        restoredPage = savedPage;
+      }
+    }
+  } catch {
+    restoredPage = 1;
+  }
+
+  setSelectedLeads([]);
+  setPage(restoredPage);
+  setPageInput(String(restoredPage));
+
+  sessionStorage.setItem(
+    leadPageStorageKey,
+    JSON.stringify({
+      scopeKey: leadPageScopeKey,
+      page: restoredPage,
+    })
+  );
+}, [leadPageStorageKey, leadPageScopeKey]);
+
+
 // ✅ small helpers
 const isAll = (arr: string[] | undefined | null) => !arr || arr.length === 0;
 
@@ -175,7 +300,7 @@ const toggleInArray = (arr: string[], value: string) => {
 };
 
 // Setters that update global filters
-const setSearchTerm = (v: string) => setFilters((f) => ({ ...f, searchTerm: v }));
+const setSearchTerm = (v: string) => setSearchInput(v);
 
 const toggleFilterSector = (v: string) =>
   setFilters((f) => ({ ...f, filterSector: toggleInArray(f.filterSector || [], v) }));
@@ -233,30 +358,7 @@ const showPartnerFilter = ["admin", "analyst"].includes(currentUser.role);
 
 
   // ✅ Helper: supports both API styles (subSector or sub_sector)
-  const getCompanySubSector = (company: any) =>
-    (company?.subSector ?? company?.sub_sector ?? "").trim();
-  const getPocCount = (lead: any): number => {
-  // ✅ best case: backend provides a count
-  if (typeof lead?.pocCount === "number") return lead.pocCount;
-  if (typeof lead?.poc_count === "number") return lead.poc_count;
-  if (typeof lead?.completedPocCount === "number") return lead.completedPocCount;
 
-  // ✅ if API returns contacts array on lead or inside company
-  const contacts = lead?.contacts ?? lead?.company?.contacts;
-  if (Array.isArray(contacts)) {
-    return contacts.filter((c: any) =>
-      c && (c.isComplete ?? (c.name || c.email || c.phone || c.linkedinProfile))
-    ).length;
-  }
-
-  // ✅ fallback: if only primary contact is attached
-  if (lead?.contact) {
-    // if you trust isComplete, keep this. Otherwise just `return 1`
-    return lead.contact.isComplete === false ? 0 : 1;
-  }
-
-  return 0;
-};
 
   // ✅ Reset sub-sector when sector changes (avoids mismatch)
   // ✅ Reset sub-sector ONLY when sector actually changes (not on first mount/restore)
@@ -426,7 +528,6 @@ if (prevSectorRef.current !== JSON.stringify(filterSector)) {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [csvUploadResults, setCsvUploadResults] = useState<any>(null);
   const [csvPreviewResults, setCsvPreviewResults] = useState<any>(null);
-
   // const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(false);
      // Initialize state from SessionStorage to survive tab switches/re-renders
   const [showIndividualLeadForm, setShowIndividualLeadForm] = useState(() => {
@@ -458,47 +559,175 @@ useEffect(() => {
 
 
    // ✅ Fetch leads for this stage (typed & structured query key)
-const UNIVERSE_STAGES = [
-  "universe",
-  "qualified",
-  "outreach",
-  "pitching",
-  "mandates",
-  "hold",
-  "dropped",
-  "rejected",
-  "won",
-  "lost",
-] as const;
+// ✅ Backend-side lead stage query: pagination + search + filters + sorting
+const filterQueryKey = [
+  filterSector,
+  filterSubSector,
+  filterAssignedTo,
+  filterPartner,
+  filterStage,
+  filterLocation,
+  filterPoc,
+  filterLeadSource,
+  filterLeadTemperature,
+  sortBy,
+];
 
-const { data: leads = [], isLoading, error } = useQuery<LeadWithDetails[]>({
-  queryKey:
-    stage === "universe"
-      ? ["leads", "stage", "universe_all_pipeline"]
-      : ["leads", "stage", stage],
-  refetchOnWindowFocus: true,
-  staleTime: 0,
+const appendCsvParam = (params: URLSearchParams, key: string, values: string[]) => {
+  if (values && values.length > 0) {
+    params.set(key, values.join(","));
+  }
+};
+
+const { data: leadsResponse, isLoading, isFetching, error } = useQuery<PaginatedLeadsResponse | LeadWithDetails[]>({
+  queryKey: ["leads", "stage", "paginated-v2", stage, page, PAGE_SIZE, debouncedSearch, filterQueryKey],
+  refetchOnWindowFocus: false,
+  staleTime: 60_000,
   retry: 1,
   queryFn: async () => {
-    // ✅ Universe = combined list (your current intent)
-    if (stage === "universe") {
-      const results = await Promise.all(
-        UNIVERSE_STAGES.map(async (st) => {
-          const res = await apiRequest("GET", `/leads/stage/${st}`);
-          return res.json();
-        })
-      );
+    const params = new URLSearchParams({
+      page: String(page),
+      limit: String(PAGE_SIZE),
+      sortBy,
+    });
 
-      const flat = results.flat() as LeadWithDetails[];
-
-      // dedupe by lead.id
-      const uniq = new Map<number, LeadWithDetails>();
-      for (const l of flat) uniq.set(l.id, l);
-      return Array.from(uniq.values());
+    if (debouncedSearch) {
+      params.set("search", debouncedSearch);
     }
 
-    // ✅ Other stages unchanged
-    const res = await apiRequest("GET", `/leads/stage/${stage}`);
+    appendCsvParam(params, "sector", filterSector);
+    appendCsvParam(params, "subSector", filterSubSector);
+    appendCsvParam(params, "assignedTo", filterAssignedTo);
+    appendCsvParam(params, "partner", filterPartner);
+    appendCsvParam(params, "stageFilter", filterStage);
+    appendCsvParam(params, "location", filterLocation);
+    appendCsvParam(params, "poc", filterPoc);
+    appendCsvParam(params, "leadSource", filterLeadSource);
+    appendCsvParam(params, "leadTemperature", filterLeadTemperature);
+
+    const res = await apiRequest("GET", `/leads/stage/${stage}?${params.toString()}`);
+    return res.json();
+  },
+});
+
+const leads = Array.isArray(leadsResponse)
+  ? leadsResponse
+  : (leadsResponse?.data ?? []);
+
+const totalLeads = Array.isArray(leadsResponse)
+  ? leads.length
+  : (leadsResponse?.total ?? 0);
+
+const totalPages = Math.max(1, Math.ceil(totalLeads / PAGE_SIZE));
+
+useEffect(() => {
+  setPageInput(String(page));
+}, [page]);
+
+useEffect(() => {
+  // Only clamp page after a real response exists.
+  // This prevents page 2 from getting forced back to page 1 during loading.
+  if (!isFetching && leadsResponse && page > totalPages) {
+    setPage(totalPages);
+    setPageInput(String(totalPages));
+    saveLeadStagePage(totalPages);
+  }
+}, [isFetching, leadsResponse, page, totalPages]);
+
+const goToPage = (targetPage: number) => {
+  const safePage = Math.min(Math.max(1, targetPage), totalPages);
+
+  if (safePage === page) {
+    setPageInput(String(safePage));
+    saveLeadStagePage(safePage);
+    return;
+  }
+
+  setSelectedLeads([]);
+  setPage(safePage);
+  setPageInput(String(safePage));
+  saveLeadStagePage(safePage);
+
+  window.requestAnimationFrame(() => {
+    listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+};
+
+const handleJumpToPage = () => {
+  const parsedPage = parseInt(pageInput, 10);
+
+  if (!Number.isFinite(parsedPage)) {
+    setPageInput(String(page));
+    return;
+  }
+
+  goToPage(parsedPage);
+};
+
+const renderPaginationControls = () => (
+  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-t pt-4">
+    <div className="text-sm text-muted-foreground">
+      Page {page} of {totalPages} • Showing {filteredAndSortedLeads.length} of {totalLeads} leads
+      {isFetching && !isLoading ? " • Updating..." : ""}
+    </div>
+
+    <div className="flex flex-wrap items-center gap-2">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => goToPage(page - 1)}
+        disabled={page === 1 || isFetching}
+        data-testid="button-page-prev"
+      >
+        Previous
+      </Button>
+
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-muted-foreground">Go to</span>
+        <Input
+          value={pageInput}
+          onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              handleJumpToPage();
+            }
+          }}
+          className="h-8 w-16"
+          inputMode="numeric"
+          data-testid="input-jump-page"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleJumpToPage}
+          disabled={isFetching}
+          data-testid="button-jump-page"
+        >
+          Go
+        </Button>
+      </div>
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => goToPage(page + 1)}
+        disabled={page >= totalPages || isFetching}
+        data-testid="button-page-next"
+      >
+        Next
+      </Button>
+    </div>
+  </div>
+);
+
+const { data: leadFilterOptions } = useQuery<LeadStageFilterOptions>({
+  queryKey: ["leads", "stage", stage, "filter-options"],
+  refetchOnWindowFocus: false,
+  staleTime: 60_000,
+  retry: 1,
+  placeholderData: (previousData) => previousData,
+  queryFn: async () => {
+    const res = await apiRequest("GET", `/leads/stage/${stage}/filter-options`);
     return res.json();
   },
 });
@@ -515,9 +744,18 @@ const { data: epnUniverse = [] } = useQuery<any[]>({
 });
 
 // ✅ Fetch EPN links for this lead stage (one-shot)
+// ✅ Fetch EPN links only when EPN filters are actually active
+const hasActiveEpnFilter =
+  !isAll(filterEpnLinkage) ||
+  !isAll(filterEpnBucket) ||
+  !isAll(filterEpnCategory) ||
+  !isAll(filterEpnStage) ||
+  !isAll(filterEpnPartnerIds);
+
 const epnLinksEnabled =
   ["admin", "partner"].includes(currentUser.role) &&
-  ["universe", "qualified", "outreach", "pitching", "mandates", "completed_mandate"].includes(stage);
+  ["universe", "qualified", "outreach", "pitching", "mandates", "completed_mandate"].includes(stage) &&
+  hasActiveEpnFilter;
 
 const epnLinkStagesForUniverse = [
   "universe",
@@ -576,22 +814,7 @@ const { data: orgUsers = [] } = useQuery<UserType[]>({
   },
 });
 
-const partnerOptions = useMemo(() => {
-  const partners = orgUsers
-    .filter((u) => u.role === "partner")
-    .map((u) => ({
-      id: u.id,
-      name:
-        u.firstName && u.lastName
-          ? `${u.firstName} ${u.lastName}`
-          : u.email || u.id,
-    }));
 
-  const uniq = new Map<string, { id: string; name: string }>();
-  for (const p of partners) uniq.set(p.id, p);
-
-  return Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name));
-}, [orgUsers]);
 
 
 // ✅ helper: read partner id from lead (supports multiple possible field names)
@@ -724,7 +947,6 @@ const handleSaveLeadTemperature = async (leadId: number, leadTemperature: string
 };
 
 
-
 const csvPreviewMutation = useMutation({
   mutationFn: async (csvData: string) => {
     const res = await apiRequest("POST", "/companies/csv-upload?preview=true", {
@@ -759,6 +981,7 @@ const csvPreviewMutation = useMutation({
     });
   },
 });
+
 
   // CSV upload mutation
 const csvUploadMutation = useMutation({
@@ -923,6 +1146,7 @@ const handleDownloadActiveLeadsCsv = async () => {
   }
 };
 
+
 const handleCsvPreview = () => {
   if (!csvFile) return;
 
@@ -933,6 +1157,7 @@ const handleCsvPreview = () => {
   };
   reader.readAsText(csvFile);
 };
+
 
   // Handle CSV file upload
   const handleCsvUpload = () => {
@@ -947,48 +1172,28 @@ const handleCsvPreview = () => {
   };
 
   // Get unique sectors and assignees for filter options
+  // ✅ Filter dropdown options now come from backend, not current 25 records
   const sectorOptions = useMemo(() => {
-    // Always show all master sectors + any extra sectors already in DB
-    const used = leads
-      .map((l) => (l.company.sector || "").trim())
-      .filter(Boolean);
-
+    const used = leadFilterOptions?.sectors ?? [];
     return Array.from(new Set([...SECTOR_OPTIONS, ...used])).sort();
-  }, [leads]);
-  
-  // ✅ Sub-sector dropdown options (depends on selected sector)
-const uniqueSubSectors = useMemo(() => {
-  const norm = (s: string) => s.trim().toLowerCase();
+  }, [leadFilterOptions]);
 
-  const base = isAll(filterSector)
-    ? leads
-    : leads.filter((lead) => filterSector.map(norm).includes(norm(lead.company.sector || "")));
-
-  const subSectors = base
-    .map((lead) => getCompanySubSector(lead.company))
-    .filter((ss) => Boolean(ss));
-
-  return Array.from(new Set(subSectors)).sort((a, b) => a.localeCompare(b));
-}, [leads, filterSector, getCompanySubSector]);
-
+  const uniqueSubSectors = useMemo(() => {
+    return leadFilterOptions?.subSectors ?? [];
+  }, [leadFilterOptions]);
 
   const uniqueLocations = useMemo(() => {
-    const locations = leads
-      .map(lead => lead.company.location)
-      .filter((location): location is string => Boolean(location));
-    return Array.from(new Set(locations)).sort();
-  }, [leads]);
+    return leadFilterOptions?.locations ?? [];
+  }, [leadFilterOptions]);
+
   const uniqueAssignees = useMemo(() => {
-    const assignees = leads
-      .map(lead => lead.assignedToUser ? {
-        id: lead.assignedToUser.id,
-        name: `${lead.assignedToUser.firstName || ''} ${lead.assignedToUser.lastName || ''}`.trim() || lead.assignedToUser.email || ''
-      } : null)
-      .filter(Boolean) as { id: string; name: string }[];
-    
-    const uniqueMap = new Map(assignees.map(a => [a.id, a]));
-    return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [leads]);
+    return leadFilterOptions?.assignees ?? [];
+  }, [leadFilterOptions]);
+
+  const partnerOptions = useMemo(() => {
+    return leadFilterOptions?.partners ?? [];
+  }, [leadFilterOptions]);
+
 
 
   const epnBucketOptions = useMemo(() => {
@@ -1028,235 +1233,65 @@ const epnPartnerOptions = useMemo(() => {
 
 
   // Apply filters and sorting
+  // ✅ Normal filters/search/sort/pagination are now backend-side.
+  // ✅ Only EPN filters remain frontend-side temporarily.
   const filteredAndSortedLeads = useMemo(() => {
     let result = [...leads];
 
-    // Apply search filter
-    if (searchTerm) {
-      result = result.filter(lead => {
-        const companyMatch = lead.company.name.toLowerCase().includes(searchTerm.toLowerCase());
-        const assigneeMatch = lead.assignedToUser ? 
-          `${lead.assignedToUser.firstName || ''} ${lead.assignedToUser.lastName || ''}`.toLowerCase().includes(searchTerm.toLowerCase()) :
-          false;
-        return companyMatch || assigneeMatch;
-      });
+    if (epnLinksEnabled) {
+      if (!isAll(filterEpnLinkage)) {
+        const wantsLinked = filterEpnLinkage.includes("linked");
+        const wantsUnlinked = filterEpnLinkage.includes("unlinked");
+
+        if (!(wantsLinked && wantsUnlinked)) {
+          result = result.filter((lead: any) => {
+            const linked = (epnByLeadId.get(lead.id) || []).length > 0;
+            return wantsLinked ? linked : !linked;
+          });
+        }
+      }
+
+      const anyLinkedMatch = (leadId: number, pred: (p: any) => boolean) => {
+        const linked = epnByLeadId.get(leadId) || [];
+        return linked.some(pred);
+      };
+
+      if (!isAll(filterEpnBucket)) {
+        result = result.filter((lead: any) =>
+          anyLinkedMatch(lead.id, (p) => filterEpnBucket.includes((p.bucket || "").trim()))
+        );
+      }
+
+      if (!isAll(filterEpnCategory)) {
+        result = result.filter((lead: any) =>
+          anyLinkedMatch(lead.id, (p) => filterEpnCategory.includes((p.category || "").trim()))
+        );
+      }
+
+      if (!isAll(filterEpnStage)) {
+        result = result.filter((lead: any) =>
+          anyLinkedMatch(lead.id, (p) => filterEpnStage.includes((p.stage || "").trim()))
+        );
+      }
+
+      if (!isAll(filterEpnPartnerIds)) {
+        result = result.filter((lead: any) =>
+          anyLinkedMatch(lead.id, (p) => filterEpnPartnerIds.includes(String(p.id)))
+        );
+      }
     }
-
-    // Apply sector filter
-  const norm = (s: string) => s.trim().toLowerCase();
-
-if (!isAll(filterSector)) {
-  const selected = filterSector.map(norm);
-  result = result.filter((lead) => selected.includes(norm(lead.company.sector || "")));
-}
-
-// ✅ Apply sub-sector filter
-// ✅ Apply sub-sector filter (normalized match)
-if (!isAll(filterSubSector)) {
-  const normSS = (s: string) => s.trim().toLowerCase();
-  const selectedSS = filterSubSector.map(normSS);
-
-  result = result.filter((lead) =>
-    selectedSS.includes(normSS(getCompanySubSector(lead.company)))
-  );
-}
-
-
-
-
-    // Apply assigned to filter
-if (!isAll(filterAssignedTo)) {
-  result = result.filter((lead) => {
-    const assignee = lead.assignedTo || null;
-    const wantsUnassigned = filterAssignedTo.includes("unassigned");
-    const wantsIds = filterAssignedTo.filter((x) => x !== "unassigned");
-
-    return (
-      (wantsUnassigned && !assignee) ||
-      (assignee && wantsIds.includes(assignee))
-    );
-  });
-}
-
-
-    // ✅ Apply partner filter (ALL stages)
-if (showPartnerFilter && !isAll(filterPartner)) {
-  result = result.filter((lead: any) => {
-    const pid = getPartnerId(lead);
-    const wantsUnassigned = filterPartner.includes("unassigned");
-    const wantsIds = filterPartner.filter((x) => x !== "unassigned");
-    return (wantsUnassigned && !pid) || (pid && wantsIds.includes(pid));
-  });
-}
-
-// ✅ Apply EPN relation filters (Lead -> linked EPN partners)
-// Works only for stages where epnLinksEnabled = true
-if (epnLinksEnabled) {
-  // 1) Linked / Unlinked
-  if (!isAll(filterEpnLinkage)) {
-    const wantsLinked = filterEpnLinkage.includes("linked");
-    const wantsUnlinked = filterEpnLinkage.includes("unlinked");
-
-    // if both selected, treat as "all" (no filter)
-    if (!(wantsLinked && wantsUnlinked)) {
-      result = result.filter((lead: any) => {
-        const linked = (epnByLeadId.get(lead.id) || []).length > 0;
-        return wantsLinked ? linked : !linked;
-      });
-    }
-  }
-
-  // helper: does lead have ANY linked epn matching predicate
-  const anyLinkedMatch = (leadId: number, pred: (p: any) => boolean) => {
-    const linked = epnByLeadId.get(leadId) || [];
-    return linked.some(pred);
-  };
-
-  // 2) Bucket
-  if (!isAll(filterEpnBucket)) {
-    result = result.filter((lead: any) =>
-      anyLinkedMatch(lead.id, (p) => filterEpnBucket.includes((p.bucket || "").trim()))
-    );
-  }
-
-  // 3) Category
-  if (!isAll(filterEpnCategory)) {
-    result = result.filter((lead: any) =>
-      anyLinkedMatch(lead.id, (p) => filterEpnCategory.includes((p.category || "").trim()))
-    );
-  }
-
-  // 4) Partner Stage
-  if (!isAll(filterEpnStage)) {
-    result = result.filter((lead: any) =>
-      anyLinkedMatch(lead.id, (p) => filterEpnStage.includes((p.stage || "").trim()))
-    );
-  }
-
-  // 5) Specific Partner IDs
-  if (!isAll(filterEpnPartnerIds)) {
-    result = result.filter((lead: any) =>
-      anyLinkedMatch(lead.id, (p) => filterEpnPartnerIds.includes(String(p.id)))
-    );
-  }
-}
-
-    // Apply stage filter (for universe tab - filter by lead stage)
-if (stage === "universe" && !isAll(filterStage)) {
-  result = result.filter((lead) => filterStage.includes(lead.stage));
-}
-
-// ✅ Apply location filter (Universe + Active stages)
-const showLocationFilter = ["universe", "qualified", "outreach", "pitching", "mandates", "completed_mandate"].includes(stage);
-
-if (showLocationFilter && !isAll(filterLocation)) {
-  const selected = filterLocation.map((x) => (x || "").trim());
-  result = result.filter((lead) => selected.includes((lead.company.location || "").trim()));
-}
-
-
-    // ✅ Apply leadSource filter
-if (!isAll(filterLeadSource)) {
-  result = result.filter((lead: any) => {
-    const src = (lead.leadSource || "").trim();
-    return filterLeadSource.includes(src);
-  });
-}
-
-    // ✅ Apply leadTemperature filter
-// ✅ Apply leadTemperature filter (multi-select)
-// supports: hot, warm, not_reached, not_set
-const showTemperatureFilter = ["universe", "qualified", "outreach", "pitching", "mandates", "completed_mandate"].includes(stage);
-
-if (showTemperatureFilter && !isAll(filterLeadTemperature)) {
-  result = result.filter((lead: any) => {
-    const temp = (lead.leadTemperature ?? lead.lead_temperature ?? null) as string | null;
-
-    return filterLeadTemperature.some((sel) => {
-      if (sel === "not_set") return !temp || temp === "not_set";
-      if (sel === "not_reached") return temp === "not_reached";
-      return temp === sel; // hot/warm
-    });
-  });
-}
-
-
-
-    // ✅ Apply POC filter
-// ✅ Apply POC filter (multi-select OR across selected rules)
-if (!isAll(filterPoc)) {
-  const normalize = (v: string) =>
-    v === "poc1" ? "has_poc1" :
-    v === "poc2" ? "has_poc2" :
-    v === "poc3" ? "has_poc3" :
-    v;
-
-  const countFor = (v: string) =>
-    v.endsWith("poc1") ? 1 :
-    v.endsWith("poc2") ? 2 :
-    3;
-
-  result = result.filter((lead: any) => {
-    const selections = filterPoc.map(normalize);
-
-    // OR across selected POC filters
-    return selections.some((sel) => {
-      if (sel.startsWith("has_")) {
-        const min = countFor(sel);
-        return getPocCount(lead) >= min;
-      }
-      if (sel.startsWith("only_")) {
-        const exact = countFor(sel);
-        return getPocCount(lead) === exact;
-      }
-      return false;
-    });
-  });
-}
-
-
-
-    // Apply channel partner filter (for universe tab)
-    // Apply sorting
-    const [sortField, sortOrder] = sortBy.split('-');
-    result.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortField) {
-        case 'company':
-          comparison = a.company.name.localeCompare(b.company.name);
-          break;
-        case 'sector':
-          comparison = (a.company.sector || '').localeCompare(b.company.sector || '');
-          break;
-        case 'assignedTo':
-          const aName = a.assignedToUser ? 
-            `${a.assignedToUser.firstName || ''} ${a.assignedToUser.lastName || ''}`.trim() : 'Unassigned';
-          const bName = b.assignedToUser ? 
-            `${b.assignedToUser.firstName || ''} ${b.assignedToUser.lastName || ''}`.trim() : 'Unassigned';
-          comparison = aName.localeCompare(bName);
-          break;
-        case 'revenue':
-          const aRev = a.company.revenueInrCr ? parseFloat(String(a.company.revenueInrCr)) : 0;
-          const bRev = b.company.revenueInrCr ? parseFloat(String(b.company.revenueInrCr)) : 0;
-          comparison = aRev - bRev;
-          break;
-        case 'dateAdded':
-          comparison = new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-          break;
-        case 'dateUpdated':
-          comparison = new Date(a.stageUpdatedAt || 0).getTime() - new Date(b.stageUpdatedAt || 0).getTime();
-          break;
-        default:
-          comparison = 0;
-      }
-
-      return sortOrder === 'asc' ? comparison : -comparison;
-    });
-
 
     return result;
-  }, [leads, searchTerm, filterSector, filterSubSector, filterAssignedTo,  filterPartner, filterStatus, filterStage,filterLocation,filterLocation,filterPoc, filterLeadSource, filterLeadTemperature, sortBy, stage]);
+  }, [
+    leads,
+    epnLinksEnabled,
+    filterEpnLinkage,
+    filterEpnBucket,
+    filterEpnCategory,
+    filterEpnStage,
+    filterEpnPartnerIds,
+    epnByLeadId,
+  ]);
 
   
 
@@ -1268,7 +1303,7 @@ if (!isAll(filterPoc)) {
     },
     qualified: { 
       title: 'Qualified', 
-      description: 'Leads with complete contact information ready for outreach',
+      description: 'Qualified leads ready to begin outreach once assigned',
       action: 'Start Outreach'
     },
     outreach: { 
@@ -1831,13 +1866,11 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary" data-testid={`count-${stage}`}>
-              {filteredAndSortedLeads.length} leads
+              {totalLeads} leads
             </Badge>
             {stage === 'universe' && ['partner', 'admin','analyst'].includes(currentUser.role) && (
               <>
-              {
-                console.log('currentUser.role',currentUser.role)
-              }
+
                 <Button
                   onClick={() => setShowBulkAssignModal(true)}
                   disabled={selectedLeads.length === 0}
@@ -1904,7 +1937,7 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search leads by company or assignee..."
-                value={searchTerm}
+                value={searchInput}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
                 data-testid="input-search-leads"
@@ -2579,20 +2612,32 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
   !isAll(filterEpnStage) ||
   !isAll(filterEpnPartnerIds) ||
   filterStatus !== "all" ||
-  !!searchTerm
+  !!searchInput
 ) && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-  clearFilters();
-  setFilterStatus("all");
-}}
-                data-testid="button-clear-filters"
-              >
-                <X className="h-4 w-4 mr-2" />
-                Clear Filters
-              </Button>
+<Button
+  variant="ghost"
+  size="sm"
+  onClick={() => {
+    clearFilters();
+    setFilterStatus("all");
+
+    // Clear local search state also
+    setSearchInput("");
+    setDebouncedSearch("");
+
+    // Reset saved page for this stage
+    sessionStorage.removeItem(leadPageStorageKey);
+
+    // Reset pagination and selection
+    setPage(1);
+    setPageInput("1");
+    setSelectedLeads([]);
+  }}
+  data-testid="button-clear-filters"
+>
+  <X className="h-4 w-4 mr-2" />
+  Clear Filters
+</Button>
             )}
 
           </div>
@@ -2625,6 +2670,14 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
         </div>
       )}
       
+      <div ref={listTopRef} />
+
+      {!isLoading && !error && totalLeads > 0 && (
+        <div className="mb-4">
+          {renderPaginationControls()}
+        </div>
+      )}
+
       {/* Leads Grid */}
       {!isLoading && !error && filteredAndSortedLeads.length > 0 ? (
         <div className="space-y-4">
@@ -2755,16 +2808,18 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
             </div>
           ))}
           </div>
+
+          {renderPaginationControls()}
         </div>
       ) : (
         <div className="text-center py-12">
           <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-semibold mb-2">No leads found</h3>
           <p className="text-muted-foreground">
-            {searchTerm 
-              ? "No leads match your search criteria." 
-              : `No leads in ${config.title.toLowerCase()} stage yet.`
-            }
+          {searchInput 
+            ? "No leads match your search criteria." 
+            : `No leads in ${config.title.toLowerCase()} stage yet.`
+          }
           </p>
           {stage === 'universe' && (
             <Button 
@@ -2878,104 +2933,104 @@ const handleMoveToStage = (leadId: number, nextStage: StageMoveTarget) => {
             </div>
 
             {csvPreviewResults && (
-              <div className="p-4 bg-muted rounded-lg space-y-3">
-                <h4 className="font-medium">Preview Results</h4>
+  <div className="p-4 bg-muted rounded-lg space-y-3">
+    <h4 className="font-medium">Preview Results</h4>
 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-                  <div>
-                    <span className="font-medium">Total Rows:</span> {csvPreviewResults.totalRows}
-                  </div>
-                  <div>
-                    <span className="font-medium">Companies to Create:</span> {csvPreviewResults.companiesToCreate || 0}
-                  </div>
-                  <div>
-                    <span className="font-medium">Companies to Update:</span> {csvPreviewResults.companiesToUpdate || 0}
-                  </div>
-                  <div>
-                    <span className="font-medium">Companies Unchanged:</span> {csvPreviewResults.companiesUnchanged || 0}
-                  </div>
-                  <div>
-                    <span className="font-medium">Leads to Create:</span> {csvPreviewResults.leadsToCreate || 0}
-                  </div>
-                  <div>
-                    <span className="font-medium">Leads Already Present:</span> {csvPreviewResults.leadsExisting || 0}
-                  </div>
-                </div>
+    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+      <div>
+        <span className="font-medium">Total Rows:</span> {csvPreviewResults.totalRows}
+      </div>
+      <div>
+        <span className="font-medium">Companies to Create:</span> {csvPreviewResults.companiesToCreate || 0}
+      </div>
+      <div>
+        <span className="font-medium">Companies to Update:</span> {csvPreviewResults.companiesToUpdate || 0}
+      </div>
+      <div>
+        <span className="font-medium">Companies Unchanged:</span> {csvPreviewResults.companiesUnchanged || 0}
+      </div>
+      <div>
+        <span className="font-medium">Leads to Create:</span> {csvPreviewResults.leadsToCreate || 0}
+      </div>
+      <div>
+        <span className="font-medium">Leads Already Present:</span> {csvPreviewResults.leadsExisting || 0}
+      </div>
+    </div>
 
-                {csvPreviewResults.previewRows?.length > 0 && (
-                  <div className="mt-3">
-                    <h5 className="font-medium mb-2">Parsed Rows</h5>
-                    <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-background">
-                      {csvPreviewResults.previewRows.map((item: any, index: number) => (
-                        <div key={index} className="text-sm border-b pb-2 last:border-b-0">
-                          <div><span className="font-medium">Row:</span> {item.row}</div>
-                          <div><span className="font-medium">Company:</span> {item.companyName}</div>
-                          <div><span className="font-medium">Company Action:</span> {item.companyAction}</div>
-                          <div><span className="font-medium">Lead Action:</span> {item.leadAction}</div>
-                          <div>
-                            <span className="font-medium">Financials:</span>{" "}
-                            Rev: {item.parsedFinancials?.revenueInrCr ?? "-"} | EBITDA: {item.parsedFinancials?.ebitdaInrCr ?? "-"} | PAT: {item.parsedFinancials?.patInrCr ?? "-"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Changed Fields:</span>{" "}
-                            {item.changedFields?.length ? item.changedFields.join(", ") : "None"}
-                          </div>
-                          <div>
-                            <span className="font-medium">Contacts Parsed:</span> {item.parsedContacts?.length || 0}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {csvPreviewResults.errors && csvPreviewResults.errors.length > 0 && (
-                  <div className="mt-4">
-                    <h5 className="font-medium text-destructive mb-2">Preview Errors:</h5>
-                    <div className="max-h-32 overflow-y-auto space-y-1">
-                      {csvPreviewResults.errors.map((error: any, index: number) => (
-                        <div key={index} className="text-sm text-destructive">
-                          Row {error.row}: {error.error}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+    {csvPreviewResults.previewRows?.length > 0 && (
+      <div className="mt-3">
+        <h5 className="font-medium mb-2">Parsed Rows</h5>
+        <div className="max-h-64 overflow-y-auto space-y-2 border rounded-md p-2 bg-background">
+          {csvPreviewResults.previewRows.map((item: any, index: number) => (
+            <div key={index} className="text-sm border-b pb-2 last:border-b-0">
+              <div><span className="font-medium">Row:</span> {item.row}</div>
+              <div><span className="font-medium">Company:</span> {item.companyName}</div>
+              <div><span className="font-medium">Company Action:</span> {item.companyAction}</div>
+              <div><span className="font-medium">Lead Action:</span> {item.leadAction}</div>
+              <div>
+                <span className="font-medium">Financials:</span>{" "}
+                Rev: {item.parsedFinancials?.revenueInrCr ?? "-"} | EBITDA: {item.parsedFinancials?.ebitdaInrCr ?? "-"} | PAT: {item.parsedFinancials?.patInrCr ?? "-"}
               </div>
-            )}
+              <div>
+                <span className="font-medium">Changed Fields:</span>{" "}
+                {item.changedFields?.length ? item.changedFields.join(", ") : "None"}
+              </div>
+              <div>
+                <span className="font-medium">Contacts Parsed:</span> {item.parsedContacts?.length || 0}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    {csvPreviewResults.errors && csvPreviewResults.errors.length > 0 && (
+      <div className="mt-4">
+        <h5 className="font-medium text-destructive mb-2">Preview Errors:</h5>
+        <div className="max-h-32 overflow-y-auto space-y-1">
+          {csvPreviewResults.errors.map((error: any, index: number) => (
+            <div key={index} className="text-sm text-destructive">
+              Row {error.row}: {error.error}
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+  </div>
+)}
 
             {csvUploadResults && (
               <div className="p-4 bg-muted rounded-lg space-y-2">
                 <h4 className="font-medium">Upload Results</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <span className="font-medium">Total Rows:</span> {csvUploadResults.totalRows}
-          </div>
-          <div>
-            <span className="font-medium">Companies Created:</span> {csvUploadResults.successfulCompanies}
-          </div>
-          <div>
-            <span className="font-medium">Companies Updated:</span> {csvUploadResults.updatedCompanies || 0}
-          </div>
-          <div>
-            <span className="font-medium">Existing Unchanged:</span> {csvUploadResults.unchangedExistingCompanies || 0}
-          </div>
-          <div>
-            <span className="font-medium">Leads Created:</span> {csvUploadResults.successfulLeads || 0}
-          </div>
-          <div>
-            <span className="font-medium">Existing Leads:</span> {csvUploadResults.existingLeads || 0}
-          </div>
-          <div>
-            <span className="font-medium">Contacts Created:</span> {csvUploadResults.successfulContacts}
-          </div>
-          <div>
-            <span className="font-medium">Contacts Updated:</span> {csvUploadResults.updatedContacts || 0}
-          </div>
-          <div>
-            <span className="font-medium">Errors:</span> {csvUploadResults.errors?.length || 0}
-          </div>
-        </div>
+<div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+  <div>
+    <span className="font-medium">Total Rows:</span> {csvUploadResults.totalRows}
+  </div>
+  <div>
+    <span className="font-medium">Companies Created:</span> {csvUploadResults.successfulCompanies}
+  </div>
+  <div>
+    <span className="font-medium">Companies Updated:</span> {csvUploadResults.updatedCompanies || 0}
+  </div>
+  <div>
+    <span className="font-medium">Existing Unchanged:</span> {csvUploadResults.unchangedExistingCompanies || 0}
+  </div>
+  <div>
+    <span className="font-medium">Leads Created:</span> {csvUploadResults.successfulLeads || 0}
+  </div>
+  <div>
+    <span className="font-medium">Existing Leads:</span> {csvUploadResults.existingLeads || 0}
+  </div>
+  <div>
+    <span className="font-medium">Contacts Created:</span> {csvUploadResults.successfulContacts}
+  </div>
+  <div>
+    <span className="font-medium">Contacts Updated:</span> {csvUploadResults.updatedContacts || 0}
+  </div>
+  <div>
+    <span className="font-medium">Errors:</span> {csvUploadResults.errors?.length || 0}
+  </div>
+</div>
                 
                 {csvUploadResults.errors && csvUploadResults.errors.length > 0 && (
                   <div className="mt-4">

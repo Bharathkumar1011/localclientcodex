@@ -132,7 +132,7 @@ export default function InvestorEditPage() {
   if (!investor) return <div className="p-10 text-center">Investor not found</div>;
 
   return (
-    <div className="container mx-auto p-6 max-w-5xl space-y-6">
+    <div className="container mx-auto p-6 max-w-7xl space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" size="icon" onClick={goBack}>
@@ -146,8 +146,8 @@ export default function InvestorEditPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
-        {/* Left Column: Organization Details */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Full Width: Organization Details */}
+        <div className="lg:col-span-3 space-y-6">
           <Card>
             <CardHeader>
               <CardTitle>Organization Details</CardTitle>
@@ -348,9 +348,9 @@ export default function InvestorEditPage() {
           </Card>
         </div>
 
-        {/* Right Column: POC Management */}
-        <div className="lg:col-span-1">
-          <Card className="h-full">
+      {/* Full Width: POC Management */}
+      <div className="lg:col-span-3">
+        <Card className="overflow-hidden">
             <CardHeader>
               <CardTitle>Points of Contact</CardTitle>
             </CardHeader>

@@ -43,6 +43,8 @@ interface InvestorCardProps {
   onManageLinks?: (investor: Investor) => void;
   onManagePOCs?: (investor: Investor) => void;
   onMoveToStage?: (investorId: number, targetStage: string) => void;
+  onDeleteInvestor?: (investor: Investor) => void;
+  onRestoreInvestor?: (investor: Investor) => void;
 }
 
 function InvestorCardComponent({
@@ -51,7 +53,9 @@ function InvestorCardComponent({
   onSectorToggle,
   onManageLinks,
   onManagePOCs,
-  onMoveToStage 
+  onMoveToStage,
+  onDeleteInvestor,
+  onRestoreInvestor,
 }: InvestorCardProps) {
   const [, setLocation] = useLocation();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -372,16 +376,40 @@ if (stage === "outreach") {
                   )}
                     <DropdownMenuSeparator />
 
-                    <div className="px-2 py-1 text-xs text-muted-foreground font-semibold bg-blue-300">Move To:</div>
-                    {getMoveTargets(stage).map((target) => (
-                        <DropdownMenuItem 
+                    {stage !== "rejected" && stage !== "all" && (
+                      <>
+                        <div className="px-2 py-1 text-xs text-muted-foreground font-semibold bg-blue-300">Move To:</div>
+                        {getMoveTargets(stage).map((target) => (
+                          <DropdownMenuItem 
                             key={target} 
                             onClick={() => onMoveToStage?.(investor.id, target)}
                             className="capitalize"
-                        >
+                          >
                             {target}
-                        </DropdownMenuItem>
-                    ))}
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+
+                    <DropdownMenuSeparator />
+
+                    {onDeleteInvestor && (
+                      <DropdownMenuItem
+                        onClick={() => onDeleteInvestor(investor)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        Delete Investor
+                      </DropdownMenuItem>
+                    )}
+
+                    {onRestoreInvestor && (
+                      <DropdownMenuItem
+                        onClick={() => onRestoreInvestor(investor)}
+                        className="text-green-600 focus:text-green-600"
+                      >
+                        Restore Investor
+                      </DropdownMenuItem>
+                    )}
                     
 
                 </DropdownMenuContent>
@@ -471,20 +499,30 @@ if (stage === "outreach") {
                       <div key={poc.id} className="p-3 rounded-md border bg-white shadow-sm text-sm space-y-1">
                         <div className="font-medium truncate text-indigo-900" title={poc.name}>{poc.name}</div>
                         <div className="text-xs text-muted-foreground truncate">{poc.designation || "-"}</div>
-<div className="flex items-center gap-4 pt-2 mt-1 border-t">
+<div className="pt-2 mt-1 border-t space-y-1.5">
   {poc.phone && (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2 min-w-0">
       <a
         href={`tel:${poc.phone}`}
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-primary flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
         title={`Call ${poc.phone}`}
       >
         <Phone className="h-3 w-3" />
       </a>
+
+      <a
+        href={`tel:${poc.phone}`}
+        className="text-xs text-gray-700 hover:text-primary truncate min-w-0"
+        onClick={(e) => e.stopPropagation()}
+        title={String(poc.phone)}
+      >
+        {poc.phone}
+      </a>
+
       <button
         type="button"
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-primary flex-shrink-0 ml-auto"
         onClick={(e) => handleCopy(e, String(poc.phone), "Phone number copied")}
         title="Copy phone number"
       >
@@ -494,18 +532,28 @@ if (stage === "outreach") {
   )}
 
   {poc.email && (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2 min-w-0">
       <a
         href={`mailto:${poc.email}`}
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-primary flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
         title={`Email ${poc.email}`}
       >
         <Mail className="h-3 w-3" />
       </a>
+
+      <a
+        href={`mailto:${poc.email}`}
+        className="text-xs text-gray-700 hover:text-primary truncate min-w-0"
+        onClick={(e) => e.stopPropagation()}
+        title={String(poc.email)}
+      >
+        {poc.email}
+      </a>
+
       <button
         type="button"
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-primary flex-shrink-0 ml-auto"
         onClick={(e) => handleCopy(e, String(poc.email), "Email copied")}
         title="Copy email"
       >
@@ -515,20 +563,32 @@ if (stage === "outreach") {
   )}
 
   {poc.linkedinProfile && (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-2 min-w-0">
       <a
         href={toSafeUrl(poc.linkedinProfile)}
         target="_blank"
         rel="noreferrer"
-        className="text-blue-600 hover:text-blue-800"
+        className="text-blue-600 hover:text-blue-800 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
         title="Open LinkedIn"
       >
         <Linkedin className="h-3 w-3" />
       </a>
+
+      <a
+        href={toSafeUrl(poc.linkedinProfile)}
+        target="_blank"
+        rel="noreferrer"
+        className="text-xs text-blue-600 hover:text-blue-800 truncate min-w-0"
+        onClick={(e) => e.stopPropagation()}
+        title={toSafeUrl(poc.linkedinProfile)}
+      >
+        {toSafeUrl(poc.linkedinProfile)}
+      </a>
+
       <button
         type="button"
-        className="text-muted-foreground hover:text-primary"
+        className="text-muted-foreground hover:text-primary flex-shrink-0 ml-auto"
         onClick={(e) =>
           handleCopy(e, toSafeUrl(poc.linkedinProfile), "LinkedIn profile copied")
         }

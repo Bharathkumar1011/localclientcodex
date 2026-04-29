@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils"
 const Textarea = React.forwardRef<
   HTMLTextAreaElement,
   React.ComponentProps<"textarea">
->(({ className, ...props }, ref) => {
+>(({ className, spellCheck, autoCorrect, autoCapitalize, ...props }, ref) => {
   return (
     <textarea
       className={cn(
@@ -13,6 +13,9 @@ const Textarea = React.forwardRef<
         className
       )}
       ref={ref}
+      spellCheck={spellCheck ?? true}
+      autoCorrect={autoCorrect ?? "on"}
+      autoCapitalize={autoCapitalize ?? "sentences"}
       {...props}
     />
   )

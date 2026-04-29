@@ -14,6 +14,20 @@ interface InvestorLinkedCompaniesDialogProps {
   investorId: number | null;
 }
 
+type PaginatedLeadsResponse = {
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+const normalizeLeadsResponse = (payload: any): any[] => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
+
 export default function InvestorLinkedCompaniesDialog({ 
   open, 
   onOpenChange, 
@@ -24,24 +38,68 @@ export default function InvestorLinkedCompaniesDialog({
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
 
   // 1. Fetch Linked Leads
-  const { data: linkedLeads = [], isLoading: isLinkedLoading } = useQuery({
+  // 1. Fetch Linked Leads
+  const { data: linkedLeads = [], isLoading: isLinkedLoading, error: linkedError } = useQuery<any[]>({
     queryKey: ["/investors/linked-leads", investorId],
     queryFn: async () => {
       if (!investorId) return [];
+
       const res = await apiRequest("GET", `/investors/${investorId}/linked-leads`);
-      return res.json();
+      const json = await res.json();
+
+      if (Array.isArray(json)) return json;
+      if (Array.isArray(json?.data)) return json.data;
+      return [];
     },
     enabled: open && !!investorId,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   // 2. Fetch Universe Leads (for linking new ones)
-  const { data: universeLeads = [], isLoading: isLeadsLoading } = useQuery({
-    queryKey: ["/leads/stage/universe"],
+  // 2. Fetch active leads for linking new companies
+  // Supports both old array response and new paginated response.
+  const { data: universeLeads = [], isLoading: isLeadsLoading, error: leadsError } = useQuery<any[]>({
+    queryKey: ["/leads/stage/universe", "link-companies-active-leads"],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/leads/stage/universe");
-      return res.json();
+      const firstRes = await apiRequest(
+        "GET",
+        "/leads/stage/universe?page=1&limit=100&stageFilter=qualified,outreach,pitching,mandates&sortBy=company-asc"
+      );
+
+      const firstJson: PaginatedLeadsResponse | any[] = await firstRes.json();
+
+      if (Array.isArray(firstJson)) {
+        return firstJson;
+      }
+
+      const firstPageLeads = normalizeLeadsResponse(firstJson);
+      const total = Number((firstJson as PaginatedLeadsResponse)?.total || firstPageLeads.length);
+      const limit = Number((firstJson as PaginatedLeadsResponse)?.limit || 100);
+      const totalPages = Math.max(1, Math.ceil(total / limit));
+
+      if (totalPages <= 1) {
+        return firstPageLeads;
+      }
+
+      const remainingPages = Array.from({ length: totalPages - 1 }, (_, index) => index + 2);
+
+      const remainingResults = await Promise.all(
+        remainingPages.map(async (pageNo) => {
+          const res = await apiRequest(
+            "GET",
+            `/leads/stage/universe?page=${pageNo}&limit=${limit}&stageFilter=qualified,outreach,pitching,mandates&sortBy=company-asc`
+          );
+          const json = await res.json();
+          return normalizeLeadsResponse(json);
+        })
+      );
+
+      return [...firstPageLeads, ...remainingResults.flat()];
     },
-    enabled: open, // Only fetch when dialog is open
+    enabled: open,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   // Mutations
@@ -109,6 +167,8 @@ export default function InvestorLinkedCompaniesDialog({
     setLeadSearch("");
   };
 
+  const loadError = linkedError || leadsError;
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
@@ -117,6 +177,12 @@ export default function InvestorLinkedCompaniesDialog({
             <span>Linked Companies</span>
           </DialogTitle>
         </DialogHeader>
+
+        {loadError && (
+          <div className="p-3 rounded-md border bg-red-50 text-red-700 text-sm">
+            Failed to load linked companies. {String((loadError as any)?.message || loadError)}
+          </div>
+        )}
 
         <div className="space-y-2">
           <div className="text-sm font-medium">Currently linked</div>
@@ -136,11 +202,16 @@ export default function InvestorLinkedCompaniesDialog({
 
                 return (
                   <div key={leadId} className="grid grid-cols-12 items-center border rounded-lg px-2 py-3 w-full">
-                    <div className="col-span-4 font-semibold truncate" title={label}>{label}</div>
+                    <div className="col-span-4 font-semibold truncate" title={label}>
+                      {label}
+                    </div>
+
                     <div className="col-span-3">
-                      <select 
-                        value={r.status} 
-                        onChange={(e) => updateStatusMutation.mutate({ leadId, status: e.target.value })} 
+                      <select
+                        value={r.status}
+                        onChange={(e) =>
+                          updateStatusMutation.mutate({ leadId, status: e.target.value })
+                        }
                         className="text-sm border rounded px-2 py-1"
                       >
                         <option value="rejected">Rejected</option>
@@ -151,6 +222,7 @@ export default function InvestorLinkedCompaniesDialog({
                         <option value="yet to contact">Yet to Contact</option>
                       </select>
                     </div>
+
                     <div className="col-span-2 flex justify-end">
                       <Button
                         variant="ghost"

@@ -134,6 +134,7 @@ const investorSubItems = [
   { title: "Warm", url: "/investor-relation/investor-management/warm" },
   { title: "Active", url: "/investor-relation/investor-management/active" },
   { title: "Dealmaking", url: "/investor-relation/investor-management/dealmaking" },
+  { title: "Deleted Investors", url: "/investor-relation/investor-management/deleted" },
   // ✅ NEW ITEM ADDED HERE
 { 
     title: "Contact Health", 
@@ -188,7 +189,10 @@ const { data: allLeads = [] } = useQuery({
     // ✅ analysts: only their assigned/team leads
     const url = role === "analyst" ? "/leads/stage/universe" : "/leads/all";
     const res = await apiRequest("GET", url);
-    return res.json();
+    const data = await res.json();
+
+    // Ensure the data is always an array
+    return Array.isArray(data) ? data : [];
   },
   refetchOnWindowFocus: false,
 });
@@ -233,8 +237,9 @@ const epnByLeadIdSidebar = useMemo(() => {
       if (!res.ok) return null;
       return res.json();
     },
+    refetchOnWindowFocus: false,
+    staleTime: 0,
   });
-
 
   // ✅ Fetch EPN Bucket Counts (Kept the correct apiFetch ones)
   const { data: idfcMetrics } = useQuery({
@@ -270,6 +275,8 @@ const epnByLeadIdSidebar = useMemo(() => {
 const countsByStage = useMemo(() => {
   const norm = (v: any) =>
     typeof v === "string" ? v.trim().toLowerCase() : String(v ?? "").trim().toLowerCase();
+
+    const safeLeads = Array.isArray(allLeads) ? allLeads : []; // Ensure allLeads is an array
 
   const getSS = (c: any) => String(c?.subSector ?? c?.sub_sector ?? "").trim();
 
@@ -643,12 +650,12 @@ const renderNavItems = (items: any[]) => (
       // ✅ Determine count based on title (skip Home)
       let count = 0;
       if (investorMetrics && child.title !== "Home") {
-        const key = child.title.toLowerCase();
         if (child.title === "Investor Universe") count = investorMetrics.totalInvestors || 0;
         else if (child.title === "Outreach") count = investorMetrics.outreach || 0;
         else if (child.title === "Active") count = investorMetrics.active || 0;
         else if (child.title === "Warm") count = investorMetrics.warm || 0;
         else if (child.title === "Dealmaking") count = investorMetrics.dealmaking || 0;
+        else if (child.title === "Deleted Investors") count = investorMetrics.deleted || 0;
       }
 
       return (

@@ -3,8 +3,17 @@ import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, spellCheck, autoCorrect, autoCapitalize, ...props }, ref) => {
     // h-9 to match icon buttons and default buttons.
+    // Enable browser spellcheck by default for text-like inputs only.
+    const isSpellcheckEligibleType =
+      !type ||
+      type === "text" ||
+      type === "search" ||
+      type === "email" ||
+      type === "url" ||
+      type === "tel";
+
     return (
       <input
         type={type}
@@ -13,6 +22,9 @@ const Input = React.forwardRef<HTMLInputElement, React.ComponentProps<"input">>(
           className
         )}
         ref={ref}
+        spellCheck={spellCheck ?? isSpellcheckEligibleType}
+        autoCorrect={autoCorrect ?? (isSpellcheckEligibleType ? "on" : undefined)}
+        autoCapitalize={autoCapitalize ?? "sentences"}
         {...props}
       />
     )

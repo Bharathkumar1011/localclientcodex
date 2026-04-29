@@ -89,7 +89,7 @@ export default function InvestorImportDialog({ open, onOpenChange }: InvestorImp
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Import Investors</DialogTitle>
           <DialogDescription>
@@ -132,40 +132,78 @@ export default function InvestorImportDialog({ open, onOpenChange }: InvestorImp
                 <span>Found <strong>{previewData.length}</strong> valid investors. Review below.</span>
               </div>
 
-              <div className="border rounded-md overflow-hidden max-h-[300px] overflow-y-auto">
+              <div className="border rounded-md overflow-x-auto max-h-[420px] overflow-y-auto">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-muted text-muted-foreground font-medium sticky top-0">
                     <tr>
-                      <th className="p-2 border-b">Organization</th>
-                      <th className="p-2 border-b">Type</th> {/* ✅ Add This */}
-                      <th className="p-2 border-b">Sector</th>
-                      <th className="p-2 border-b">Primary POC</th>
-                      <th className="p-2 border-b">Designation</th> {/* ✅ ADD THIS LINE */}
-                      <th className="p-2 border-b">Total POCs</th>
+                      <th className="p-2 border-b min-w-[220px]">Organization</th>
+                      <th className="p-2 border-b min-w-[120px]">Type</th>
+                      <th className="p-2 border-b min-w-[140px]">Sector</th>
+                      <th className="p-2 border-b min-w-[180px]">Primary POC</th>
+                      <th className="p-2 border-b min-w-[120px]">Total POCs</th>
+                      <th className="p-2 border-b min-w-[520px]">POC Details Preview</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y bg-white">
-                    {previewData.slice(0, 50).map((row: any, i: number) => (
-                      <tr key={i} className="hover:bg-muted/50">
-                        <td className="p-2 font-medium">{row.organization}</td>
-                        <td className="p-2">{row.investorType}</td> {/* ✅ Add This */}
-                        <td className="p-2">{row.sector}</td>
-                        <td className="p-2">{row.firstPoc}</td>
+                    {previewData.slice(0, 50).map((row: any, i: number) => {
+                      const poc1 = row.contacts?.[0] || null;
+                      const poc2 = row.contacts?.[1] || null;
 
-                        {/* ✅ ADD THIS NEW CELL */}
-                        <td className="p-2 text-muted-foreground">
-                          {row.contacts?.[0]?.designation || "Investor"}
-                        </td>
-
-                        
-                        <td className="p-2">
+                      return (
+                        <tr key={i} className="hover:bg-muted/50 align-top">
+                          <td className="p-2 font-medium align-top">{row.organization || "-"}</td>
+                          <td className="p-2 align-top">{row.investorType || "-"}</td>
+                          <td className="p-2 align-top">{row.sector || "-"}</td>
+                          <td className="p-2 align-top">{row.firstPoc || "No POC"}</td>
+                          <td className="p-2 align-top">
                             <Badge variant="secondary" className="flex w-fit items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {row.pocCount}
+                              <Users className="h-3 w-3" />
+                              {row.pocCount}
                             </Badge>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+
+                          <td className="p-2 align-top">
+                            <div className="space-y-3">
+                              {poc1 ? (
+                                <div className="rounded-md border bg-slate-50 p-3">
+                                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    POC 1
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                    <div><span className="font-medium">Name:</span> {poc1.name || "-"}</div>
+                                    <div><span className="font-medium">Designation:</span> {poc1.designation || "-"}</div>
+                                    <div><span className="font-medium">Phone:</span> {poc1.phone || "-"}</div>
+                                    <div><span className="font-medium">Email:</span> {poc1.email || "-"}</div>
+                                    <div className="col-span-2 break-all">
+                                      <span className="font-medium">LinkedIn:</span> {poc1.linkedinProfile || "-"}
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-xs text-muted-foreground">No POC 1 detected</div>
+                              )}
+
+                              {poc2 && (
+                                <div className="rounded-md border bg-slate-50 p-3">
+                                  <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                                    POC 2
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                                    <div><span className="font-medium">Name:</span> {poc2.name || "-"}</div>
+                                    <div><span className="font-medium">Designation:</span> {poc2.designation || "-"}</div>
+                                    <div><span className="font-medium">Phone:</span> {poc2.phone || "-"}</div>
+                                    <div><span className="font-medium">Email:</span> {poc2.email || "-"}</div>
+                                    <div className="col-span-2 break-all">
+                                      <span className="font-medium">LinkedIn:</span> {poc2.linkedinProfile || "-"}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
                 {previewData.length > 50 && (
